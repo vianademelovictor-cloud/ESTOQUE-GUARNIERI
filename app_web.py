@@ -3,132 +3,142 @@ import sqlite3
 import pandas as pd
 import math
 from datetime import datetime
+import time
 
 # Configuração da Página
-st.set_page_config(page_title="Guarnieri Estoque", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="Guarnieri Pisos - Oficial", page_icon="🏗️", layout="wide")
 
 def conectar():
-    return sqlite3.connect('estoque_piso.db')
+    return sqlite3.connect('estoque_piso.db', check_same_thread=False)
 
-# --- INICIALIZAÇÃO DO BANCO (Cria ou ajusta as tabelas) ---
+# --- INICIALIZAÇÃO DO BANCO ---
 def inicializar_banco():
     conn = conectar()
     cursor = conn.cursor()
-    # Tabela de Clientes
+    cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
+         m2_por_caixa REAL, preco_m2 REAL, m2_total REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS vendas_cabecalho 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, data_venda TEXT, cliente_id INTEGER, total_pago REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS vendas_itens 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER, produto TEXT, qtd REAL, unitario REAL, subtotal REAL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS clientes 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, telefone TEXT, endereco TEXT)''')
-    
-    # Tabela de Histórico - PADRONIZADA
-    # Se a tabela já existir com erro, os comandos abaixo garantem a estrutura correta
-    cursor.execute('''CREATE TABLE IF NOT EXISTS historico_vendas 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, data_venda TEXT, cliente TEXT, cpf TEXT, produto TEXT, qtd REAL)''')
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, telefone TEXT, endereco TEXT, bairro TEXT, cep TEXT)''')
     conn.commit()
     conn.close()
 
 inicializar_banco()
 
-st.title("🏗️ Gestão Guarnieri")
+# --- FUNÇÃO DO RECIBO (USA DADOS DA MEMÓRIA PARA NÃO DAR ERRO) ---
+@st.dialog("📄 Recibo de Pedido - Guarnieri Pisos")
+def exibir_recibo_imediato(cliente_info, itens_carrinho, total_geral, pedido_id):
+    st.markdown("<h2 style='text-align: center; color: #1e5d2d; margin-bottom:0;'>GUARNIERI PISOS</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 14px;'>PISOS E REVESTIMENTOS - ARGAMASSA E REJUNTO TODAS AS CORES</p>", unsafe_allow_html=True)
+    st.write(f"<p style='text-align: center;'><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</p>", unsafe_allow_html=True)
+    st.write("---")
+    
+    c1, c2 = st.columns(2)
+    c1.write(f"**Data:** {datetime.now().strftime('%d/%m/%Y')}")
+    c2.write(f"**PEDIDO Nº:** {pedido_id:04d}")
+    
+    st.write(f"**Nome:** {cliente_info['nome']}")
+    st.write(f"**Endereço:** {cliente_info['endereco']}, {cliente_info['bairro']} - **CEP:** {cliente_info['cep']}")
+    st.write(f"**Fone:** {cliente_info['telefone']}")
+    
+    st.write("---")
+    # Tabela formatada igual ao bloco verde
+    df_recibo = pd.DataFrame(itens_carrinho)
+    df_recibo = df_recibo.rename(columns={'prod': 'DISCRIMINAÇÃO', 'qtd': 'QUANT. m²', 'unit': 'UNITÁRIO', 'total': 'TOTAL R$'})
+    
+    # Formatação de Moeda
+    df_recibo['UNITÁRIO'] = df_recibo['UNITÁRIO'].map("R$ {:,.2f}".format)
+    df_recibo['TOTAL R$'] = df_recibo['TOTAL R$'].map("R$ {:,.2f}".format)
+    
+    st.table(df_recibo[['DISCRIMINAÇÃO', 'QUANT. m²', 'UNITÁRIO', 'TOTAL R$']])
+    
+    st.write("---")
+    st.markdown(f"<h2 style='text-align: right;'>VALOR TOTAL R$ {total_geral:,.2f}</h2>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; border: 3px solid black; padding: 10px; font-weight: bold; font-size: 20px; background-color: #f0f2f6;'>PAGO</div>", unsafe_allow_html=True)
+    st.caption("CONFIRA SUA MERCADORIA NO ATO DA ENTREGA")
 
-menu = st.sidebar.selectbox("Navegação", ["🛒 Realizar Venda", "👤 Clientes", "📈 Relatório de Vendas", "📋 Estoque"])
+# --- INTERFACE ---
+st.title("🏗️ Gestão Guarnieri Pisos")
+menu = st.sidebar.selectbox("Menu", ["🛒 Realizar Venda", "📋 Estoque", "👤 Clientes", "📈 Histórico"])
 
 if menu == "🛒 Realizar Venda":
-    st.header("Nova Venda")
+    st.header("Novo Pedido")
     conn = conectar()
-    clientes_df = pd.read_sql("SELECT nome, cpf FROM clientes", conn)
+    clientes_df = pd.read_sql("SELECT * FROM clientes", conn)
     conn.close()
     
     if clientes_df.empty:
-        st.warning("Cadastre um cliente primeiro na aba 'Clientes'!")
+        st.warning("Cadastre um cliente primeiro.")
     else:
-        cli_sel = st.selectbox("Selecione o Cliente:", clientes_df['nome'].tolist())
-        cpf_sel = clientes_df[clientes_df['nome'] == cli_sel]['cpf'].values[0]
+        cli_nome = st.selectbox("Selecione o Cliente", clientes_df['nome'].tolist())
+        cli_dados = clientes_df[clientes_df['nome'] == cli_nome].iloc[0]
         
-        cod = st.text_input("Código do Produto")
-        if cod:
-            conn = conectar()
-            piso_df = pd.read_sql(f"SELECT nome, m2_total, m2_por_caixa FROM produtos WHERE codigo = '{cod}'", conn)
-            conn.close()
-            
-            if not piso_df.empty:
-                piso = piso_df.iloc[0]
-                st.info(f"**Piso:** {piso['nome']} | **Estoque:** {piso['m2_total']} m²")
-                qtd_pedida = st.number_input("Metragem (m²)", min_value=0.0)
-                
-                if qtd_pedida > 0:
-                    # Proteção contra divisão por zero (Erro Infinity)
-                    m2_cx = piso['m2_por_caixa']
-                    if m2_cx and m2_cx > 0:
-                        caixas = math.ceil(qtd_pedida / m2_cx)
-                        total_real = round(caixas * m2_cx, 2)
-                        st.warning(f"Sugerido: {caixas} caixas (Total: {total_real} m²)")
-                    else:
-                        total_real = qtd_pedida
-                    
-                    if st.button("Finalizar Venda"):
-                        if total_real <= piso['m2_total']:
-                            dt = datetime.now().strftime("%d/%m/%Y %H:%M")
-                            conn = conectar()
-                            conn.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (total_real, cod))
-                            conn.execute("INSERT INTO historico_vendas (data_venda, cliente, cpf, produto, qtd) VALUES (?,?,?,?,?)", 
-                                           (dt, cli_sel, cpf_sel, piso['nome'], total_real))
-                            conn.commit()
-                            conn.close()
-                            st.success("Venda registrada com sucesso!")
+        if 'carrinho' not in st.session_state: st.session_state.carrinho = []
+        
+        with st.container(border=True):
+            cod = st.text_input("Código do Produto")
+            if cod:
+                conn = conectar()
+                p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,)).fetchone()
+                conn.close()
+                if p:
+                    st.info(f"📦 {p[0]} | Saldo: {p[3]} m²")
+                    m2 = st.number_input("Metragem (m²)", min_value=0.0)
+                    if m2 > 0:
+                        cxs = math.ceil(m2 / p[1])
+                        total_m2 = round(cxs * p[1], 2)
+                        total_rs = round(total_m2 * p[2], 2)
+                        if st.button("➕ Adicionar Linha"):
+                            st.session_state.carrinho.append({"prod": p[0], "cod": cod, "qtd": total_m2, "unit": p[2], "total": total_rs})
                             st.rerun()
-                        else:
-                            st.error("Estoque insuficiente!")
 
-elif menu == "👤 Clientes":
-    st.header("Cadastro de Clientes")
-    with st.form("form_cliente", clear_on_submit=True):
-        n = st.text_input("Nome Completo")
-        c = st.text_input("CPF")
-        t = st.text_input("Telefone")
-        e = st.text_input("Endereço")
-        if st.form_submit_button("Salvar Cliente"):
-            if n and c:
-                try:
-                    conn = conectar()
-                    conn.execute("INSERT INTO clientes (nome, cpf, telefone, endereco) VALUES (?,?,?,?)", (n, c, t, e))
-                    conn.commit()
-                    conn.close()
-                    st.success("Cliente cadastrado!")
-                except:
-                    st.error("Erro: CPF já cadastrado.")
-            else:
-                st.warning("Nome e CPF são obrigatórios!")
-
-elif menu == "📈 Relatório de Vendas":
-    st.header("Histórico de Vendas Realizadas")
-    conn = conectar()
-    try:
-        # Busca padronizada com os nomes de colunas corretos
-        df = pd.read_sql("SELECT id as 'Nº Pedido', data_venda as Data, cliente as Cliente, produto as Produto, qtd as 'M² Vendido' FROM historico_vendas ORDER BY id DESC", conn)
-        
-        if df.empty:
-            st.info("Nenhuma venda registrada ainda.")
-        else:
-            st.dataframe(df, use_container_width=True)
+        if st.session_state.carrinho:
+            df_c = pd.DataFrame(st.session_state.carrinho)
+            total_pedido = df_c["total"].sum()
+            st.table(df_c[['prod', 'qtd', 'total']])
             
-            st.subheader("❌ Cancelar Venda")
-            id_cancelar = st.number_input("Digite o número do pedido para excluir:", min_value=1, step=1)
-            if st.button("Excluir Pedido e Devolver ao Estoque"):
-                venda = conn.execute("SELECT produto, qtd FROM historico_vendas WHERE id = ?", (id_cancelar,)).fetchone()
-                if venda:
-                    conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE nome = ?", (venda[1], venda[0]))
-                    conn.execute("DELETE FROM historico_vendas WHERE id = ?", (id_cancelar,))
-                    conn.commit()
-                    st.success(f"Venda #{id_cancelar} cancelada!")
-                    st.rerun()
-                else:
-                    st.error("Pedido não encontrado.")
-    except Exception as e:
-        st.error(f"Erro ao carregar histórico: {e}")
-    finally:
-        conn.close()
+            if st.button("✅ Finalizar Pedido"):
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago) VALUES (?,?,?)", 
+                               (datetime.now().strftime("%d/%m/%Y"), int(cli_dados['id']), total_pedido))
+                v_id = cursor.lastrowid
+                for item in st.session_state.carrinho:
+                    cursor.execute("INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal) VALUES (?,?,?,?,?)",
+                                   (v_id, item['prod'], item['qtd'], item['unit'], item['total']))
+                    cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item['qtd'], item['cod']))
+                conn.commit()
+                conn.close()
+                
+                # EXIBE O RECIBO USANDO OS DADOS DA MEMÓRIA (NÃO DÁ ERRO)
+                exibir_recibo_imediato(cli_dados, st.session_state.carrinho, total_pedido, v_id)
+                st.session_state.carrinho = []
 
 elif menu == "📋 Estoque":
-    st.header("Inventário Atual")
+    st.header("Estoque Atual")
     conn = conectar()
-    st.dataframe(pd.read_sql("SELECT codigo, nome, m2_total FROM produtos", conn), use_container_width=True)
+    df_est = pd.read_sql("SELECT codigo as 'Cód', nome as 'Produto', m2_total as 'Saldo (m²)' FROM produtos", conn)
+    st.dataframe(df_est, use_container_width=True, hide_index=True)
     conn.close()
+
+elif menu == "👤 Clientes":
+    st.header("Novo Cliente")
+    with st.form("cli"):
+        n = st.text_input("Nome"); c = st.text_input("CPF"); t = st.text_input("Tel")
+        e = st.text_input("Endereço"); b = st.text_input("Bairro"); cp = st.text_input("CEP")
+        if st.form_submit_button("Salvar"):
+            conn = conectar()
+            conn.execute("INSERT INTO clientes (nome, cpf, telefone, endereco, bairro, cep) VALUES (?,?,?,?,?,?)", (n,c,t,e,b,cp))
+            conn.commit(); conn.close(); st.success("Salvo!")
+
+elif menu == "📈 Histórico":
+    st.header("Pedidos Realizados")
+    conn = conectar()
+    df_h = pd.read_sql('''SELECT v.id as 'Nº', v.data_venda as Data, c.nome as Cliente, v.total_pago as 'Total' 
+                          FROM vendas_cabecalho v JOIN clientes c ON v.cliente_id = c.id ORDER BY v.id DESC''', conn)
+    conn.close()
+    st.dataframe(df_h, use_container_width=True)

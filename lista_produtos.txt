@@ -1,16 +1,37 @@
-0001;Venato Bege Triunfo;57x57;130.00
-0002;Urano Marrom Triunfo;57x57;145.00
-0003;Urano Verde Triunfo;57x57;70.00
-0004;Crema Gray Rocha 82x82;124.00
-0005;Piso Ouro Preto Triunfo;57x57;200.00
-0006;Revestimento Vitoria Formigres;34x60;145.00
-0007;Revestimento Marmore Formigres;34x60;145.00
-0008;Revestimento Azulejo Formigres;34x60;145.00
-0009;Revestimento Pandora Formigres;34x60;145.00
-0010;Revestimento Brique Formigres;34x60;145.00
-0011;Revestimento Tijolo Formigres;34x60;145.00
-0012;Revestimento Avila Cinza Formigres;34x60;145.00
-0013;Revestimento Fiorentina Formigres;34x60;145.00
-0014;Revestimento Oreo Formigres;34x60;145.00
-
-
+0001;Venato Bege Triunfo;130.00;3.30;21.90
+0002;Urano Marrom Triunfo;145.00;3.30;21.90
+0003;Urano Verde Triunfo;70.00;3.30;21.90
+0004;Crema Gray Rocha;124.00;2.70;38.90
+0005;Piso Ouro Preto Triunfo;200.00;3.30;23.90
+0006;Revestimento Vitoria Formigres;145.00;2.10;28.90
+0007;Revestimento Marmore Formigres;145.00;2.10;28.90
+0008;Revestimento Azulejo Formigres;145.00;2.10;28.90
+0009;Revestimento Pandora Formigres;145.00;2.10;28.90
+0010;Revestimento Brique Formigres;145.00;2.10;28.90
+0011;Revestimento Tijolo Formigres;145.00;2.10;28.90
+0012;Revestimento Avila Cinza Formigres;145.00;2.10;28.90
+0013;Revestimento Fiorentina Formigres;145.00;2.10;28.90
+0014;Revestimento Oreo Formigres;145.00;2.10;28.90
+0015;Piso Marmorizada Risca de Giz Viva;145.00;2.39;21.90
+0016;Piso Marmorizada Cinza Viva;145.00;2.39;21.90
+0017;Piso Marmorizada Bege;130.00;2.39;21.90
+0018;Piso Branco Viva;130.00;2.39;21.90
+0019;Piso Marmorizada Viva;200.00;2.39;21.90
+0020;Piso Retificado Astro Viva;268.00;2.30;25.90
+0021;Piso Retificado Pedregulho Viva;330.00;2.30;25.90
+0022;Piso Retificado Marmorizado Bege Viva;150.00;2.30;25.90
+0023;Piso Retificado Pedra Marmore Viva;154.00;2.30;25.90
+0024;Piso Retificado Brilhante Viva;165.00;2.30;25.90
+0025;Piso Pedra Viva;145.00;2.35;21.90
+0026;Revestimento risca de Giz Viva;43.80;2.19;27.90
+0027;Piso Retificado Cinza Cimento Viva;41.00;2.62;26.90
+0028;Piso Retificado Cinza Maior Viva;193.38;2.62;26.90
+0029;Piso Retificado Marmore bege Maior Viva;57.64;2.62;26.90
+0030;Piso Brilhante Cinza;35.25;2.35;21.90
+0031;Piso São Tome Viva;173.20;2.35;27.90
+0032;Piso Retificado Madeirado Maior Viva;98.00;2.62;26.90
+0033;Revestimento Retificado Marmore Bege 3D;119.00;1.68;32.90
+0034;Revestimento Retificado Alto Relevo;120.00;1.68;32.90
+0035;Piso Pedra Marmore Viva;130.00;2.35;27.90
+0036;Piso Modelo Americano Insefra;108.00;2.19;38.90
+0037;Piso Amadeirado Insefra;130.00;1.93;35.90
