@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import math
 from datetime import datetime
-import time
 
 # Configuração da Página
 st.set_page_config(page_title="Guarnieri Pisos - Oficial", page_icon="🏗️", layout="wide")
@@ -11,10 +10,11 @@ st.set_page_config(page_title="Guarnieri Pisos - Oficial", page_icon="🏗️", 
 def conectar():
     return sqlite3.connect('estoque_piso.db', check_same_thread=False)
 
-# --- INICIALIZAÇÃO DO BANCO ---
+# --- ATUALIZAÇÃO AUTOMÁTICA DO BANCO (CORRIGE O ERRO DE COLUNA) ---
 def inicializar_banco():
     conn = conectar()
     cursor = conn.cursor()
+    # Criação das tabelas base
     cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
          m2_por_caixa REAL, preco_m2 REAL, m2_total REAL)''')
@@ -24,46 +24,46 @@ def inicializar_banco():
         (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER, produto TEXT, qtd REAL, unitario REAL, subtotal REAL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS clientes 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, telefone TEXT, endereco TEXT, bairro TEXT, cep TEXT)''')
+    
+    # RESOLVE O ERRO: Adiciona a coluna 'caixas' se ela não existir
+    cursor.execute("PRAGMA table_info(vendas_itens)")
+    colunas = [info[1] for info in cursor.fetchall()]
+    if 'caixas' not in colunas:
+        cursor.execute("ALTER TABLE vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0")
+    
     conn.commit()
     conn.close()
 
 inicializar_banco()
 
-# --- FUNÇÃO DO RECIBO (USA DADOS DA MEMÓRIA PARA NÃO DAR ERRO) ---
+# --- FUNÇÃO DO RECIBO (COM COLUNA DE CAIXAS) ---
 @st.dialog("📄 Recibo de Pedido - Guarnieri Pisos")
-def exibir_recibo_imediato(cliente_info, itens_carrinho, total_geral, pedido_id):
+def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id):
     st.markdown("<h2 style='text-align: center; color: #1e5d2d; margin-bottom:0;'>GUARNIERI PISOS</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 14px;'>PISOS E REVESTIMENTOS - ARGAMASSA E REJUNTO TODAS AS CORES</p>", unsafe_allow_html=True)
     st.write(f"<p style='text-align: center;'><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</p>", unsafe_allow_html=True)
     st.write("---")
     
     c1, c2 = st.columns(2)
     c1.write(f"**Data:** {datetime.now().strftime('%d/%m/%Y')}")
     c2.write(f"**PEDIDO Nº:** {pedido_id:04d}")
-    
-    st.write(f"**Nome:** {cliente_info['nome']}")
+    st.write(f"**Cliente:** {cliente_info['nome']}")
     st.write(f"**Endereço:** {cliente_info['endereco']}, {cliente_info['bairro']} - **CEP:** {cliente_info['cep']}")
-    st.write(f"**Fone:** {cliente_info['telefone']}")
     
     st.write("---")
-    # Tabela formatada igual ao bloco verde
     df_recibo = pd.DataFrame(itens_carrinho)
-    df_recibo = df_recibo.rename(columns={'prod': 'DISCRIMINAÇÃO', 'qtd': 'QUANT. m²', 'unit': 'UNITÁRIO', 'total': 'TOTAL R$'})
-    
-    # Formatação de Moeda
+    df_recibo = df_recibo.rename(columns={'prod': 'DISCRIMINAÇÃO', 'caixas': 'QTD CAIXAS', 'qtd': 'TOTAL m²', 'unit': 'UNITÁRIO', 'total': 'TOTAL R$'})
     df_recibo['UNITÁRIO'] = df_recibo['UNITÁRIO'].map("R$ {:,.2f}".format)
     df_recibo['TOTAL R$'] = df_recibo['TOTAL R$'].map("R$ {:,.2f}".format)
     
-    st.table(df_recibo[['DISCRIMINAÇÃO', 'QUANT. m²', 'UNITÁRIO', 'TOTAL R$']])
+    st.table(df_recibo[['DISCRIMINAÇÃO', 'QTD CAIXAS', 'TOTAL m²', 'UNITÁRIO', 'TOTAL R$']])
     
     st.write("---")
-    st.markdown(f"<h2 style='text-align: right;'>VALOR TOTAL R$ {total_geral:,.2f}</h2>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: center; border: 3px solid black; padding: 10px; font-weight: bold; font-size: 20px; background-color: #f0f2f6;'>PAGO</div>", unsafe_allow_html=True)
-    st.caption("CONFIRA SUA MERCADORIA NO ATO DA ENTREGA")
+    st.markdown(f"<h2 style='text-align: right;'>TOTAL R$ {total_geral:,.2f}</h2>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; border: 3px solid black; padding: 10px; font-weight: bold; background-color: #f0f2f6;'>PAGO</div>", unsafe_allow_html=True)
 
-# --- INTERFACE ---
+# --- MENU LATERAL ---
 st.title("🏗️ Gestão Guarnieri Pisos")
-menu = st.sidebar.selectbox("Menu", ["🛒 Realizar Venda", "📋 Estoque", "👤 Clientes", "📈 Histórico"])
+menu = st.sidebar.selectbox("Navegação", ["🛒 Realizar Venda", "📋 Estoque", "👤 Clientes", "📈 Histórico"])
 
 if menu == "🛒 Realizar Venda":
     st.header("Novo Pedido")
@@ -87,37 +87,37 @@ if menu == "🛒 Realizar Venda":
                 conn.close()
                 if p:
                     st.info(f"📦 {p[0]} | Saldo: {p[3]} m²")
-                    m2 = st.number_input("Metragem (m²)", min_value=0.0)
-                    if m2 > 0:
-                        cxs = math.ceil(m2 / p[1])
-                        total_m2 = round(cxs * p[1], 2)
-                        total_rs = round(total_m2 * p[2], 2)
+                    m2_desejado = st.number_input("Metragem (m²)", min_value=0.0, step=0.01)
+                    if m2_desejado > 0:
+                        qtd_caixas = math.ceil(m2_desejado / p[1])
+                        m2_final = round(qtd_caixas * p[1], 2)
+                        v_total = round(m2_final * p[2], 2)
+                        st.warning(f"💡 Serão necessárias **{qtd_caixas} caixas** (Total: {m2_final} m²)")
+                        
                         if st.button("➕ Adicionar Linha"):
-                            st.session_state.carrinho.append({"prod": p[0], "cod": cod, "qtd": total_m2, "unit": p[2], "total": total_rs})
+                            st.session_state.carrinho.append({"prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total})
                             st.rerun()
 
         if st.session_state.carrinho:
             df_c = pd.DataFrame(st.session_state.carrinho)
+            st.table(df_c[['prod', 'caixas', 'qtd', 'total']])
             total_pedido = df_c["total"].sum()
-            st.table(df_c[['prod', 'qtd', 'total']])
             
             if st.button("✅ Finalizar Pedido"):
                 conn = conectar()
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago) VALUES (?,?,?)", 
-                               (datetime.now().strftime("%d/%m/%Y"), int(cli_dados['id']), total_pedido))
+                cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago) VALUES (?,?,?)", (datetime.now().strftime("%d/%m/%Y"), int(cli_dados['id']), total_pedido))
                 v_id = cursor.lastrowid
                 for item in st.session_state.carrinho:
-                    cursor.execute("INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal) VALUES (?,?,?,?,?)",
-                                   (v_id, item['prod'], item['qtd'], item['unit'], item['total']))
+                    cursor.execute("INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) VALUES (?,?,?,?,?,?)",
+                                   (v_id, item['prod'], item['qtd'], item['unit'], item['total'], item['caixas']))
                     cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item['qtd'], item['cod']))
                 conn.commit()
                 conn.close()
-                
-                # EXIBE O RECIBO USANDO OS DADOS DA MEMÓRIA (NÃO DÁ ERRO)
-                exibir_recibo_imediato(cli_dados, st.session_state.carrinho, total_pedido, v_id)
+                exibir_recibo(cli_dados, st.session_state.carrinho, total_pedido, v_id)
                 st.session_state.carrinho = []
 
+# Aba Estoque, Clientes e Histórico seguem o padrão funcional anterior
 elif menu == "📋 Estoque":
     st.header("Estoque Atual")
     conn = conectar()
