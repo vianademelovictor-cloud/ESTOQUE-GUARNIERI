@@ -1,28 +1,43 @@
-# 🏗️ Sistema de Gestão de Estoque Guarnieri (Web v2.0)
+🏗️ Sistema de Gestão Guarnieri Pisos (Web v2.0)
+Este sistema foi migrado para uma interface Web utilizando Python e Streamlit, facilitando o controle de estoque de pisos, cadastro de clientes e a geração de recibos digitais diretamente pelo navegador.
 
-Este sistema foi migrado para uma interface Web utilizando **Python** e **Streamlit**, facilitando o controle de estoque de pisos, cadastro de clientes e histórico de vendas diretamente pelo navegador.
+🛠️ Passo 1: Instalação do Ambiente (Preparação)
+Antes de rodar o sistema pela primeira vez, é necessário instalar as bibliotecas no seu computador:
 
-## 🚀 Como Rodar o Sistema
+Abra o CMD (Prompt de Comando):
 
-1. **Abra o Terminal (CMD)** na pasta do projeto:
-   `cd Documents\guarnieri`
+Pressione Windows + R, digite cmd e aperte Enter.
 
-2. **Inicie o servidor do sistema**:
-   `python -m streamlit run app_web.py`
+Instale o Streamlit e o Pandas:
 
-3. **Acesse no Navegador**:
-   O sistema abrirá automaticamente no endereço: `http://localhost:8501`
+Copie e cole o comando abaixo no terminal e aperte Enter:
 
-## 📋 Funcionalidades Atuais
+pip install streamlit pandas
 
-* **🛒 Realizar Venda**: Baixa automática no estoque com cálculo inteligente de caixas (evita erro de divisão por zero).
-* **👤 Gestão de Clientes**: Cadastro completo de clientes associados às vendas.
-* **📈 Relatório de Vendas**: Histórico detalhado de todas as saídas com opção de cancelamento e devolução de estoque.
-* **📦 Inventário**: Visualização em tempo real do saldo de metros quadrados (m²) disponível.
+🚀 Passo 2: Como Abrir e Rodar o Sistema
+Siga estes passos detalhados para iniciar o programa:
 
-## 🛠️ Tecnologias Utilizadas
+Abra o CMD.
 
-* **Linguagem**: Python 3.x
-* **Interface**: Streamlit
-* **Banco de Dados**: SQLite3 (Arquivo `estoque_piso.db`)
-* **Versionamento**: Git & GitHub
+Acesse a pasta do projeto:
+
+cd Documents\guarnieri
+
+Inicie o sistema com o comando Python:
+
+python -m streamlit run app_web.py
+
+Acesse no Navegador:
+
+O sistema abrirá automaticamente no endereço: http://localhost:8501.
+
+📋 Novas Funcionalidades e Cálculos
+O sistema foi atualizado para automatizar os processos da loja:
+
+🧮 Cálculo Automático de Venda: O sistema solicita a metragem (m²) e calcula sozinho a quantidade de caixas fechadas necessária, eliminando erros de conta manual.
+
+📄 Recibo Digital Fiel: Gera um recibo na tela com o layout idêntico ao bloco verde físico, contendo o cabeçalho da Guarnieri Pisos (Limeira-SP) e o status de "PAGO".
+
+📦 Controle de Inventário: Visualização em tempo real do saldo de metros quadrados disponível no estoque.
+
+👤 Cadastro Completo: Registro de clientes com campos específicos para Bairro e CEP, fundamentais para a entrega e emissão do recibo.
