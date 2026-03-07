@@ -131,6 +131,37 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
         mime="application/pdf",
         use_container_width=True
     )
+    
+    # --- RECIBO FORMATADO PARA WHATSAPP ---
+    # Criamos um texto que parece um recibo físico
+    msg_recibo = (
+        f"*📄 RECIBO DE PEDIDO - GUARNIERI PISOS*\n"
+        f"-------------------------------------------\n"
+        f"*PEDIDO Nº:* {pedido_id:04d}\n"
+        f"*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n"
+        f"-------------------------------------------\n"
+        f"*CLIENTE:* {cliente_info['nome']}\n"
+        f"*PAGAMENTO:* {forma_paga}\n"
+        f"-------------------------------------------\n"
+    )
+    
+    # Adiciona os itens um por um na mensagem
+    for item in itens_carrinho:
+        msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
+    
+    msg_recibo += (
+        f"-------------------------------------------\n"
+        f"*VALOR TOTAL: R$ {total_geral:,.2f}*\n"
+        f"-------------------------------------------\n"
+        f"Agradecemos a preferência! 🏗️"
+    )
+    
+    import urllib.parse
+    msg_url = urllib.parse.quote(msg_recibo)
+    
+    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+    
+    st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
 # --- NAVEGAÇÃO LATERAL ---
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/609/609803.png", width=100)
