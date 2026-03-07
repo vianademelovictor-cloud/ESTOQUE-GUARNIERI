@@ -1,43 +1,72 @@
-Sistema de Gestão Guarnieri Pisos (Web v2.0)
-Este sistema foi migrado para uma interface Web utilizando Python e Streamlit, facilitando o controle de estoque de pisos, cadastro de clientes e a geração de recibos digitais diretamente pelo navegador.
+\# 🏗️ Sistema de Gestão Guarnieri Pisos
 
-Passo 1: Instalação do Ambiente (Preparação)
-Antes de rodar o sistema pela primeira vez, é necessário instalar as bibliotecas no seu computador:
 
-Abra o CMD (Prompt de Comando):
 
-Pressione Windows + R, digite cmd e aperte Enter.
+Este sistema foi desenvolvido em \*\*Python\*\* com o framework \*\*Streamlit\*\* para a modernização do controle de estoque e vendas da Guarnieri Pisos.
 
-Instale o Streamlit e o Pandas:
 
-Copie e cole o comando abaixo no terminal e aperte Enter:
 
-pip install streamlit pandas
+\## 🛠️ Instalação e Preparação
 
-Passo 2: Como Abrir e Rodar o Sistema
-Siga estes passos detalhados para iniciar o programa:
 
-Abra o CMD.
 
-Acesse a pasta do projeto:
+Antes de rodar o sistema pela primeira vez, você deve instalar as bibliotecas necessárias:
 
-cd Documents\guarnieri
 
-Inicie o sistema com o comando Python:
 
-python -m streamlit run app_web.py
+1\.  \*\*Abra o CMD (Prompt de Comando)\*\*.
 
-Acesse no Navegador:
+2\.  \*\*Instale as dependências\*\*:
 
-O sistema abrirá automaticamente no endereço: http://localhost:8501.
+&nbsp;   ```cmd
 
-Novas Funcionalidades e Cálculos
-O sistema foi atualizado para automatizar os processos da loja:
+&nbsp;   pip install streamlit pandas fpdf
 
-Cálculo Automático de Venda: O sistema solicita a metragem (m²) e calcula sozinho a quantidade de caixas fechadas necessária, eliminando erros de conta manual.
+&nbsp;   ```
 
-Recibo Digital Fiel: Gera um recibo na tela com o layout idêntico ao bloco verde físico, contendo o cabeçalho da Guarnieri Pisos (Limeira-SP) e o status de "PAGO".
 
-Controle de Inventário: Visualização em tempo real do saldo de metros quadrados disponível no estoque.
 
-Cadastro Completo: Registro de clientes com campos específicos para Bairro e CEP, fundamentais para a entrega e emissão do recibo.
+---
+
+
+
+\## 🚀 Como Abrir o Sistema
+
+
+
+1\.  \*\*Abra o CMD\*\*.
+
+2\.  \*\*Acesse a pasta do projeto\*\*:
+
+&nbsp;   ```cmd
+
+&nbsp;   cd Documents\\guarnieri
+
+&nbsp;   ```
+
+3\.  \*\*Inicie o servidor local\*\*:
+
+&nbsp;   ```cmd
+
+&nbsp;   python -m streamlit run app\_web.py
+
+&nbsp;   ```
+
+
+
+---
+
+
+
+\## 📋 Funcionalidades
+
+
+
+\* \*\*🧮 Cálculo de Caixas\*\*: Arredondamento automático de metragem para caixas inteiras.
+
+\* \*\*💳 Financeiro\*\*: Seleção de forma de pagamento (Pix, Cartão, Dinheiro).
+
+\* \*\*📄 Gerador de PDF\*\*: Criação de recibo profissional para download e impressão.
+
+\* \*\*📦 Estoque\*\*: Baixa automática e entrada de novos materiais.
+
