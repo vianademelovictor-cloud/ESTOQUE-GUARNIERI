@@ -1,18 +1,19 @@
-import streamlit as st
-import sqlite3
-import pandas as pd
-import math
-from datetime import datetime
+# importar bibliotecas que serão usadas no código (
+import streamlit as st #criar interface web
+import sqlite3 #banco de dados
+import pandas as pd #manipulação de dados, limpar e ordenar
+import math #operações matemáticas
+from datetime import datetime #registrar e formatar horas
 import time
-from fpdf import FPDF
-import io
+from fpdf import FPDF #registrar e baixar pdf
+import io #gravar arquivos baixados na memória
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Guarnieri Pisos - Oficial", page_icon="🏗️", layout="wide")
 
 # --- CAMADA DE DADOS (DATABASE) ---
 def conectar():
-    return sqlite3.connect('estoque_piso.db', check_same_thread=False)
+    return sqlite3.connect('estoque_piso.db', check_same_thread=False) #conectar ao banco de dados
 
 def inicializar_banco():
     conn = conectar()
@@ -39,18 +40,18 @@ def inicializar_banco():
          qtd REAL, unitario REAL, subtotal REAL, caixas INTEGER)''')
     
     # MIGRAÇÃO: Garante que colunas novas existam em bancos antigos
-    cursor.execute("PRAGMA table_info(vendas_itens)")
+    cursor.execute("PRAGMA table_info(vendas_itens)") #retorna dados salvos na tabela de vendas
     colunas_itens = [info[1] for info in cursor.fetchall()]
     if 'caixas' not in colunas_itens:
-        cursor.execute("ALTER TABLE vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0") #verifica a existencia da coluna e se não for encontrada ela é add
 
-    cursor.execute("PRAGMA table_info(vendas_cabecalho)")
+    cursor.execute("PRAGMA table_info(vendas_cabecalho)") 
     colunas_vendas = [info[1] for info in cursor.fetchall()]
     if 'forma_pagamento' not in colunas_vendas:
-        cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'")
+        cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'") 
     
-    conn.commit()
-    conn.close()
+    conn.commit() #grava as informações
+    conn.close() #Encerra a conexão
 
 # Inicia o banco ao abrir o app
 inicializar_banco()
@@ -156,10 +157,10 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
         f"Agradecemos a preferência! 🏗️"
     )
     
-    import urllib.parse
+    import urllib.parse #biblioteca py padrão. Para codificar e decodificar urls
     msg_url = urllib.parse.quote(msg_recibo)
     
-    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}" #encaminha a mensagem automaticamente para o telefone 
     
     st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
@@ -174,13 +175,13 @@ menu = st.sidebar.selectbox("Selecione a Opção",
 if menu == "🛒 Realizar Venda":
     st.header("🛒 Novo Pedido de Venda")
     conn = conectar()
-    clientes_df = pd.read_sql("SELECT * FROM clientes", conn)
+    clientes_df = pd.read_sql("SELECT * FROM clientes", conn) #verifica se tem cadastro para o cliente informado
     conn.close()
     
     if clientes_df.empty:
-        st.warning("⚠️ Nenhum cliente cadastrado. Vá até a aba 'Clientes' primeiro.")
-    else:
-        # Layout de seleção superior
+        st.warning("⚠️ Nenhum cliente cadastrado. Vá até a aba 'Clientes' primeiro.") #se o cliente não tiver cadastro, dispara mensagem de alerta
+    else: #Se o cliente estiver cadastrado irá exibir duas telas
+        # Layout de seleção superior.
         col_c1, col_c2 = st.columns([2, 1])
         with col_c1:
             cli_nome = st.selectbox("Selecione o Cliente", clientes_df['nome'].tolist())
@@ -196,15 +197,15 @@ if menu == "🛒 Realizar Venda":
             st.subheader("Adicionar Produto")
             cod = st.text_input("Digite o Código do Produto")
             if cod:
-                conn = conectar()
+                conn = conectar() #busca no bd o código do produto informado
                 p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,)).fetchone()
                 conn.close()
                 if p:
-                    st.info(f"📦 **{p[0]}** | Estoque: {p[3]} m² | Caixa: {p[1]} m²")
-                    m2_desejado = st.number_input("Quantos m² o cliente precisa?", min_value=0.0, step=0.1)
+                    st.info(f"📦 **{p[0]}** | Estoque: {p[3]} m² | Caixa: {p[1]} m²") #se o  produto for encontrado irá devolver a descrição 
+                    m2_desejado = st.number_input("Quantos m² o cliente precisa?", min_value=0.0, step=0.1) 
                     
                     if m2_desejado > 0:
-                        qtd_caixas = math.ceil(m2_desejado / p[1])
+                        qtd_caixas = math.ceil(m2_desejado / p[1]) #calcular a quantidade de caixas necessária de acordo com a metragem
                         m2_final = round(qtd_caixas * p[1], 2)
                         v_total = round(m2_final * p[2], 2)
                         st.warning(f"💡 Venda mínima: **{qtd_caixas} caixas** ({m2_final} m²)")
@@ -220,7 +221,7 @@ if menu == "🛒 Realizar Venda":
                 else:
                     st.error("Produto não encontrado.")
 
-        if st.session_state.carrinho:
+        if st.session_state.carrinho: #se houver itens no carrinho irá exibir a descrição e valor final da compra 
             st.subheader("Itens do Pedido")
             df_c = pd.DataFrame(st.session_state.carrinho)
             st.table(df_c[['prod', 'caixas', 'qtd', 'total']])
@@ -233,7 +234,7 @@ if menu == "🛒 Realizar Venda":
                 # Salva o cabeçalho com a forma de pagamento
                 cursor.execute("""INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) 
                                VALUES (?,?,?,?)""", 
-                               (datetime.now().strftime("%d/%m/%Y"), int(cli_dados['id']), total_pedido, forma_pago))
+                               (datetime.now().strftime("%d/%m/%Y"), int(cli_dados['id']), total_pedido, forma_pago)) #registrar data e hora da compra 
                 v_id = cursor.lastrowid
                 
                 # Salva os itens e baixa o estoque
@@ -241,7 +242,7 @@ if menu == "🛒 Realizar Venda":
                     cursor.execute("""INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) 
                                    VALUES (?,?,?,?,?,?)""",
                                    (v_id, item['prod'], item['qtd'], item['unit'], item['total'], item['caixas']))
-                    cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item['qtd'], item['cod']))
+                    cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item['qtd'], item['cod'])) #Inserta, registra a venda. Registra saída do produto
                 
                 conn.commit()
                 conn.close()
