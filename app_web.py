@@ -1,57 +1,87 @@
-# importar bibliotecas que serão usadas no código (
-import streamlit as st #criar interface web
-import sqlite3 #banco de dados
-import pandas as pd #manipulação de dados, limpar e ordenar
-import math #operações matemáticas
-from datetime import datetime #registrar e formatar horas
+# --- IMPORTAÇÃO DE BIBLIOTECAS ---
+
+# Streamlit é a biblioteca principal para criar a interface web do app
+import streamlit as st 
+
+# Streamlit é a biblioteca principal para criar a interface web do app
+import sqlite3 
+
+# Pandas é usado para estruturar os dados em tabelas (DataFrames) e facilitar cálculos
+import pandas as pd
+
+ # Math fornece funções matemáticas
+import math 
+
+# Datetime permite manipular datas e horários (ex: registro de entrada/saída)
+from datetime import datetime 
+
+# Time é usado para funções de tempo, como pausas ou delays na interface
 import time
-from fpdf import FPDF #registrar e baixar pdf
-import io #gravar arquivos baixados na memória
+
+# FPDF é a biblioteca responsável pela geração e formatação de arquivos PDF
+from fpdf import FPDF 
+
+# IO permite lidar com fluxos de dados na memória (ex: gerar o PDF sem salvar no HD do servidor)
+import io 
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
+
+# Define as configurações visuais da aba do navegador e o layout expandido
 st.set_page_config(page_title="Guarnieri Pisos - Oficial", page_icon="🏗️", layout="wide")
 
 # --- CAMADA DE DADOS (DATABASE) ---
+# Função para estabelecer a conexão com o arquivo do banco de dados SQLite
 def conectar():
-    return sqlite3.connect('estoque_piso.db', check_same_thread=False) #conectar ao banco de dados
-
+    # 'check_same_thread=False' permite que o Streamlit acesse o banco de várias abas ao mesmo tempo
+    return sqlite3.connect('estoque_piso.db', check_same_thread=False) 
+# Função para criar as tabelas necessárias caso elas ainda não existam
 def inicializar_banco():
-    conn = conectar()
-    cursor = conn.cursor()
+    conn = conectar() # Abre a conexão
+    cursor = conn.cursor() # Cria um cursor para executar comandos SQL
     
-    # Tabela de Produtos
+    # --- TABELA DE PRODUTOS ---
+    # Armazena o catálogo: código único, nome, quanto vem na caixa e preço
     cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
          m2_por_caixa REAL, preco_m2 REAL, m2_total REAL)''')
     
-    # Tabela de Clientes
+    # --- TABELA DE CLIENTES ---
+    # Guarda os dados de contato e localização para entrega/faturamento
     cursor.execute('''CREATE TABLE IF NOT EXISTS clientes 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, 
          telefone TEXT, endereco TEXT, bairro TEXT, cep TEXT)''')
     
-    # Tabela de Vendas (Cabeçalho com Forma de Pagamento)
+   # --- TABELA DE VENDAS (CABEÇALHO) ---
+    # Registra o "geral" da venda: quando aconteceu, para quem e como foi paga
     cursor.execute('''CREATE TABLE IF NOT EXISTS vendas_cabecalho 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, data_venda TEXT, cliente_id INTEGER, 
          total_pago REAL, forma_pagamento TEXT)''')
     
-    # Tabela de Itens da Venda
+    # --- TABELA DE ITENS DA VENDA ---
+    # Detalha quais produtos estão em cada venda (um cabeçalho pode ter vários itens)
     cursor.execute('''CREATE TABLE IF NOT EXISTS vendas_itens 
         (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER, produto TEXT, 
          qtd REAL, unitario REAL, subtotal REAL, caixas INTEGER)''')
     
-    # MIGRAÇÃO: Garante que colunas novas existam em bancos antigos
-    cursor.execute("PRAGMA table_info(vendas_itens)") #retorna dados salvos na tabela de vendas
+   # --- MIGRAÇÃO: Atualização de Tabelas Antigas ---
+    
+    # Verifica a estrutura atual da tabela 'vendas_itens'
+    cursor.execute("PRAGMA table_info(vendas_itens)") 
+    # Extrai apenas os nomes das colunas existentes para uma lista
     colunas_itens = [info[1] for info in cursor.fetchall()]
+    # Se a coluna 'caixas' não existir (versão antiga do app), ela é adicionada agora
     if 'caixas' not in colunas_itens:
         cursor.execute("ALTER TABLE vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0") #verifica a existencia da coluna e se não for encontrada ela é add
-
+    # Verifica a estrutura atual da tabela 'vendas_cabecalho'
     cursor.execute("PRAGMA table_info(vendas_cabecalho)") 
+    # Extrai os nomes das colunas para conferência
     colunas_vendas = [info[1] for info in cursor.fetchall()]
+    # Se a coluna 'forma_pagamento' não existir, ela é adicionada com um valor padrão
     if 'forma_pagamento' not in colunas_vendas:
         cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'") 
     
-    conn.commit() #grava as informações
-    conn.close() #Encerra a conexão
+    conn.commit() # Salva todas as alterações estruturais de forma definitiva
+    conn.close() # Encerra a conexão com o banco de dados para evitar travamentos
 
 # Inicia o banco ao abrir o app
 inicializar_banco()
