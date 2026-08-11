@@ -161,30 +161,9 @@ def inicializar_banco():
     conn.commit()
     conn.close()
 
-def obter_categoria_cliente(cliente_id):
-    conn = conectar()
-    query_ranking = """
-        SELECT c.id
-        FROM vendas_cabecalho v 
-        JOIN clientes c ON v.cliente_id = c.id 
-        GROUP BY c.id
-        ORDER BY SUM(v.total_pago) DESC
-    """
-    df_rank = pd.read_sql(query_ranking, conn)
-    conn.close()
-    if not df_rank.empty and cliente_id in df_rank["id"].values:
-        posicao = df_rank[df_rank["id"] == cliente_id].index[0] + 1
-        if posicao == 1:
-            return "🥇 Ouro", 0.10  
-        elif posicao == 2:
-            return "🥈 Prata", 0.05  
-        elif posicao == 3:
-            return "🥉 Bronze", 0.05  
-    return "Padrão", 0.00
-
 inicializar_banco()
 
-# --- 4. MODAL DE RECIBO (COM JAVASCRIPT REINTEGRADO) ---
+# --- 4. MODAL DE RECIBO ---
 @st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
 def exibir_recibo(
     cliente_info,
@@ -192,7 +171,6 @@ def exibir_recibo(
     total_geral,
     pedido_id,
     forma_paga,
-    categoria_cli="",
     desconto_valor=0.0,
 ):
     st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom:0;'>GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>", unsafe_allow_html=True)
@@ -202,7 +180,7 @@ def exibir_recibo(
     c1, c2 = st.columns(2)
     c1.write(f"**Data:** {datetime.now().strftime('%d/%m/%Y')}")
     c2.write(f"**PEDIDO Nº:** {pedido_id:04d}")
-    st.write(f"**Cliente:** {cliente_info['nome']} ({categoria_cli})")
+    st.write(f"**Cliente:** {cliente_info['nome']}")
     st.write(f"**Endereço:** {cliente_info['endereco']}, {cliente_info['bairro']}")
     st.write(f"**Forma de Pagamento:** {forma_paga}")
     st.divider()
@@ -212,7 +190,7 @@ def exibir_recibo(
     st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
     
     if desconto_valor > 0:
-        st.write(f"<p style='text-align: right; color: #38bdf8;'>Desconto Categoria ({categoria_cli}): - R$ {desconto_valor:,.2f}</p>", unsafe_allow_html=True)
+        st.write(f"<p style='text-align: right; color: #38bdf8;'>Desconto Aplicado: - R$ {desconto_valor:,.2f}</p>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='text-align: right; color: #ffffff;'>TOTAL R$ {total_geral:,.2f}</h3>", unsafe_allow_html=True)
 
     # --- SCRIPT WEB (JAVASCRIPT) - IMPRESSÃO PROFISSIONAL BLINDADA ---
@@ -229,7 +207,7 @@ def exibir_recibo(
         
     linha_desconto = ""
     if desconto_valor > 0:
-        linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto ({categoria_cli}): - R$ {desconto_valor:,.2f}</div>"
+        linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>"
 
     html_recibo = f"""
     <html>
@@ -256,7 +234,7 @@ def exibir_recibo(
         <hr style="margin: 20px 0;">
         <div class="info">
             <p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p>
-            <p><b>Cliente:</b> {cliente_info['nome']} ({categoria_cli})<br>
+            <p><b>Cliente:</b> {cliente_info['nome']}<br>
             <b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br>
             <b>Pagamento:</b> {forma_paga}</p>
         </div>
@@ -305,41 +283,52 @@ def exibir_recibo(
     components.html(html_js, height=70)
 
     # --- GERADOR DE PDF ---
+    def limpar_texto(texto):
+        return str(texto).encode('latin-1', 'ignore').decode('latin-1')
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(190, 10, "GUARNIERI MATERIAIS DE CONSTRUCAO", ln=True, align="C")
+    
     pdf.set_font("Arial", "", 10)
     pdf.cell(190, 7, "Rua Ana Herminia Trento Roque, 902 - Limeira - SP", ln=True, align="C")
     pdf.cell(190, 7, "Fone: (19) 9 9473-6066", ln=True, align="C")
     pdf.ln(10)
+    
     pdf.set_font("Arial", "B", 12)
     pdf.cell(190, 10, f"PEDIDO DE VENDA: {pedido_id:04d}", ln=True)
+    
     pdf.set_font("Arial", "", 11)
     pdf.cell(190, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
-    pdf.cell(190, 7, f"Cliente: {cliente_info['nome']} ({categoria_cli})", ln=True)
-    pdf.cell(190, 7, f"Endereco: {cliente_info['endereco']}, {cliente_info['bairro']}", ln=True)
-    pdf.cell(190, 7, f"Forma de Pagamento: {forma_paga}", ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Cliente: {cliente_info['nome']}"), ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Endereco: {cliente_info['endereco']}, {cliente_info['bairro']}"), ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Forma de Pagamento: {forma_paga}"), ln=True)
     pdf.ln(5)
+    
     pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", "B", 10)
     pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
     pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
     pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
     pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
+    
     pdf.set_font("Arial", "", 10)
     for i in itens_carrinho:
-        pdf.cell(80, 8, str(i["prod"]), 1)
+        pdf.cell(80, 8, limpar_texto(i["prod"]), 1)
         pdf.cell(30, 8, str(i["caixas"]), 1, 0, "C")
         pdf.cell(40, 8, f"{i['qtd']:.2f}", 1, 0, "C")
         pdf.cell(40, 8, f"R$ {i['total']:,.2f}", 1, 1, "R")
+        
     if desconto_valor > 0:
         pdf.ln(2)
-        pdf.cell(190, 7, f"Desconto ({categoria_cli}): - R$ {desconto_valor:,.2f}", ln=True, align="R")
+        pdf.cell(190, 7, limpar_texto(f"Desconto: - R$ {desconto_valor:,.2f}"), ln=True, align="R")
+        
     pdf.ln(5)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(190, 10, f"VALOR TOTAL: R$ {total_geral:,.2f}", ln=True, align="R")
+    
     pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
     
     st.download_button(
@@ -349,27 +338,31 @@ def exibir_recibo(
         mime="application/pdf",
         use_container_width=True,
     )
-    
+
+    # --- GERADOR DE LINK WHATSAPP ---
     msg_recibo = (
         f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n"
         f"-------------------------------------------\n"
         f"*PEDIDO Nº:* {pedido_id:04d}\n"
         f"*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n"
         f"-------------------------------------------\n"
-        f"*CLIENTE:* {cliente_info['nome']} ({categoria_cli})\n"
+        f"*CLIENTE:* {cliente_info['nome']}\n"
         f"*PAGAMENTO:* {forma_paga}\n"
         f"-------------------------------------------\n"
     )
     for item in itens_carrinho:
         msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
+    
     if desconto_valor > 0:
-        msg_recibo += f"-------------------------------------------\n*DESCONTO ({categoria_cli}):* -R$ {desconto_valor:,.2f}\n"
+        msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
+        
     msg_recibo += (
         f"-------------------------------------------\n"
         f"*VALOR TOTAL: R$ {total_geral:,.2f}*\n"
         f"-------------------------------------------\n"
         f"Agradecemos a preferência! 🏗️"
     )
+    
     msg_url = urllib.parse.quote(msg_recibo)
     link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
     st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
@@ -477,10 +470,6 @@ elif menu == "🛒 Realizar Venda":
                 
         if cli_nome:
             cli_dados = clientes_df[clientes_df["nome"] == cli_nome].iloc[0]
-            categoria_cli, pct_desconto = obter_categoria_cliente(int(cli_dados["id"]))
-            
-            if pct_desconto > 0:
-                st.info(f"🏆 Cliente **{cli_nome}** possui a categoria **{categoria_cli}** e tem direito a **{int(pct_desconto * 100)}% de desconto** neste pedido!")
             
             if "carrinho" not in st.session_state:
                 st.session_state.carrinho = []
@@ -496,7 +485,6 @@ elif menu == "🛒 Realizar Venda":
                 if prods_df.empty:
                     st.warning("⚠️ Nenhum produto cadastrado no estoque.")
                 else:
-                    # Cria a lista no formato "0001 - Piso Venato"
                     lista_produtos = [""] + [f"{r['codigo']} - {r['nome']}" for _, r in prods_df.iterrows()]
                     
                     prod_selecionado = st.selectbox(
@@ -507,7 +495,6 @@ elif menu == "🛒 Realizar Venda":
                     )
                     
                     if prod_selecionado:
-                        # Pega apenas o código (tudo que vem antes do hífen)
                         cod = prod_selecionado.split(" - ")[0]
                         
                         conn = conectar()
@@ -533,7 +520,7 @@ elif menu == "🛒 Realizar Venda":
                                     time.sleep(0.5)
                                     st.rerun()
                                     
-            # --- FINALIZAÇÃO DO PEDIDO ---
+            # --- FINALIZAÇÃO DO PEDIDO (COM DESCONTO MANUAL) ---
             if st.session_state.carrinho:
                 with st.container(border=True):
                     st.subheader("3. Itens no Pedido")
@@ -541,13 +528,16 @@ elif menu == "🛒 Realizar Venda":
                     st.table(df_c[["prod", "caixas", "qtd", "total"]])
                     
                     subtotal_pedido = df_c["total"].sum()
-                    valor_desconto = round(subtotal_pedido * pct_desconto, 2)
-                    total_final = subtotal_pedido - valor_desconto
+                    
+                    # --- CAMPO DE DESCONTO MANUAL ---
+                    desconto_valor = st.number_input("💸 Aplicar Desconto (R$):", min_value=0.0, max_value=float(subtotal_pedido), step=1.0, value=0.0)
+                    
+                    total_final = subtotal_pedido - desconto_valor
                     
                     c_tot1, c_tot2 = st.columns(2)
                     c_tot1.write(f"**Subtotal dos Produtos:** R$ {subtotal_pedido:,.2f}")
-                    if pct_desconto > 0:
-                        c_tot1.write(f"**Desconto ({categoria_cli} - {int(pct_desconto*100)}%):** - R$ {valor_desconto:,.2f}")
+                    if desconto_valor > 0:
+                        c_tot1.write(f"**Desconto Aplicado:** - R$ {desconto_valor:,.2f}")
                     st.markdown(f"<h2 style='text-align: right; color: #ffffff;'>Total a Pagar: R$ {total_final:,.2f}</h2>", unsafe_allow_html=True)
                     
                     if st.button("✅ Finalizar Venda e Gerar Recibo"):
@@ -571,7 +561,7 @@ elif menu == "🛒 Realizar Venda":
                         conn.commit()
                         conn.close()
                         
-                        exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, categoria_cli, valor_desconto)
+                        exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, desconto_valor)
                         st.session_state.carrinho = []
         else:
             st.info("👆 Selecione ou digite o nome do cliente acima para iniciar a venda.")
@@ -614,7 +604,6 @@ elif menu == "📋 Estoque":
 elif menu == "👤 Cadastro de Cliente":
     st.header("👤 Cadastro de Novos Clientes")
     
-    # --- INTEGRAÇÃO DA API VIACEP REINSERIDA ---
     if 'endereco_api' not in st.session_state:
         st.session_state.endereco_api = {"logradouro": "", "bairro": "", "localidade": "", "uf": ""}
     
@@ -689,8 +678,7 @@ elif menu == "🔍 Buscar Cliente":
             )
             if nome_selecionado:
                 cli = all_cli[all_cli["nome"] == nome_selecionado].iloc[0]
-                cat, pct = obter_categoria_cliente(int(cli["id"]))
-                st.markdown(f"### 📋 Ficha de: **{cli['nome']}** ({cat})")
+                st.markdown(f"### 📋 Ficha de: **{cli['nome']}**")
                 c1, c2, c3 = st.columns(3)
                 c1.write(f"**CPF:** {cli['cpf']}")
                 c2.write(f"**Telefone:** {cli['telefone']}")
@@ -729,7 +717,6 @@ elif menu == "📈 Histórico de Vendas":
     df_h = pd.read_sql(query, conn)
     conn.close()
     if not df_h.empty:
-        # --- DASHBOARD REINSERIDO E ADAPTADO ---
         st.subheader("📊 Indicadores de Desempenho")
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Pedidos", len(df_h))
@@ -771,23 +758,17 @@ elif menu == "🏆 Ranking de Clientes":
     conn.close()
     if not df_rank.empty:
         categorias = []
-        descontos = []
         for idx in range(len(df_rank)):
             if idx == 0:
-                categorias.append("🥇 Ouro")
-                descontos.append("10% OFF")
+                categorias.append("🥇 1º Lugar")
             elif idx == 1:
-                categorias.append("🥈 Prata")
-                descontos.append("5% OFF")
+                categorias.append("🥈 2º Lugar")
             elif idx == 2:
-                categorias.append("🥉 Bronze")
-                descontos.append("5% OFF")
+                categorias.append("🥉 3º Lugar")
             else:
-                categorias.append("Padrão")
-                descontos.append("0%")
-        df_rank.insert(0, "Categoria", categorias)
-        df_rank.insert(1, "Desconto Automático", descontos)
-        st.subheader("🥇 Pódio e Categorias de Clientes")
+                categorias.append("Cliente")
+        df_rank.insert(0, "Posição", categorias)
+        st.subheader("🥇 Pódio de Clientes")
         st.dataframe(df_rank, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhuma compra registrada para gerar o ranking ainda.")
