@@ -383,7 +383,7 @@ menu = st.sidebar.radio(
         "🔍 Buscar Cliente",
         "📈 Histórico de Vendas",
         "🏆 Ranking de Clientes",
-        "📥 Entrada de Material",
+        "📦 Gestão de Produtos",
     ],
 )
 
@@ -434,11 +434,11 @@ elif menu == "🚨 Alerta de Estoque Baixo":
             k1, k2 = st.columns(2)
             k1.metric("Produtos em Situação Crítica", f"{len(df_critico)} item(ns)")
             k2.metric("Total de Caixas a Repor (Mínimo)", f"{df_critico['Sugestão de Reposição (Cx)'].sum():,} cx")
-            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas** em estoque. Recomenda-se realizar o pedido de reposição.")
+            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas/unidades** em estoque. Recomenda-se realizar o pedido de reposição.")
             colunas = ["Cód", "Produto", "Caixas Atuais", "Sugestão de Reposição (Cx)", "Rendimento (m²/Cx)", "Saldo Atual (m²)",]
             st.dataframe(df_critico_exib[colunas], use_container_width=True, hide_index=True)
         else:
-            st.success("✅ **Estoque Seguro!** Todos os seus produtos possuem 10 ou mais caixas em estoque.")
+            st.success("✅ **Estoque Seguro!** Todos os seus produtos possuem 10 ou mais caixas/unidades em estoque.")
     else:
         st.info("Nenhum produto cadastrado no sistema.")
 
@@ -477,7 +477,6 @@ elif menu == "🛒 Realizar Venda":
             with st.container(border=True):
                 st.subheader("2. Adicionar Produtos")
                 
-                # --- BUSCA INTELIGENTE POR CÓDIGO OU NOME ---
                 conn = conectar()
                 prods_df = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
                 conn.close()
@@ -491,7 +490,7 @@ elif menu == "🛒 Realizar Venda":
                         "🔍 Digite ou selecione o Produto (Código ou Nome):",
                         options=lista_produtos,
                         index=0,
-                        help="Você pode digitar tanto o código numérico quanto o nome do piso."
+                        help="Você pode digitar tanto o código numérico quanto o nome do piso/material."
                     )
                     
                     if prod_selecionado:
@@ -503,14 +502,14 @@ elif menu == "🛒 Realizar Venda":
                         
                         if p:
                             preco_caixa = p[1] * p[2]
-                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço por Caixa Fechada: R$ {preco_caixa:,.2f}**")
-                            m2_desejado = st.number_input("Quantos m² o cliente precisa?", min_value=0.0, step=0.1)
+                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço Unitário (Caixa/Saco): R$ {preco_caixa:,.2f}**")
+                            m2_desejado = st.number_input("Quantos m² (ou unidades) o cliente precisa?", min_value=0.0, step=0.1)
                             
                             if m2_desejado > 0:
                                 qtd_caixas = math.ceil(m2_desejado / p[1]) if p[1] > 0 else 1
                                 m2_final = round(qtd_caixas * p[1], 2) if p[1] > 0 else m2_desejado
                                 v_total = round(m2_final * p[2], 2)
-                                st.warning(f"💡 Venda mínima recomendada: **{qtd_caixas} caixas** ({m2_final} m²) = **R$ {v_total:,.2f}**")
+                                st.warning(f"💡 Venda calculada: **{qtd_caixas} caixas/unid.** ({m2_final} m²) = **R$ {v_total:,.2f}**")
                                 
                                 if st.button("➕ Adicionar ao Carrinho"):
                                     st.session_state.carrinho.append({
@@ -520,7 +519,6 @@ elif menu == "🛒 Realizar Venda":
                                     time.sleep(0.5)
                                     st.rerun()
                                     
-            # --- FINALIZAÇÃO DO PEDIDO (COM DESCONTO MANUAL) ---
             if st.session_state.carrinho:
                 with st.container(border=True):
                     st.subheader("3. Itens no Pedido")
@@ -529,9 +527,7 @@ elif menu == "🛒 Realizar Venda":
                     
                     subtotal_pedido = df_c["total"].sum()
                     
-                    # --- CAMPO DE DESCONTO MANUAL ---
                     desconto_valor = st.number_input("💸 Aplicar Desconto (R$):", min_value=0.0, max_value=float(subtotal_pedido), step=1.0, value=0.0)
-                    
                     total_final = subtotal_pedido - desconto_valor
                     
                     c_tot1, c_tot2 = st.columns(2)
@@ -590,7 +586,7 @@ elif menu == "📋 Estoque":
         total_caixas = df_est["Caixas Fechadas"].sum()
         k1, k2, k3 = st.columns(3)
         k1.metric("Itens Cadastrados", total_itens)
-        k2.metric("Total de Caixas Fechadas", f"{total_caixas:,} cx")
+        k2.metric("Total de Caixas/Unidades", f"{total_caixas:,} cx")
         k3.metric("Total em Estoque (m²)", f"{total_m2:,.2f} m²")
         st.divider()
         colunas_ordem = ["Cód", "Produto", "Caixas Fechadas", "Preço por Caixa (R$)", "Rendimento (m²/Caixa)", "Preço/m² (R$)", "Saldo Total (m²)",]
@@ -773,24 +769,93 @@ elif menu == "🏆 Ranking de Clientes":
     else:
         st.info("Nenhuma compra registrada para gerar o ranking ainda.")
 
-elif menu == "📥 Entrada de Material":
-    st.header("📥 Entrada de Estoque")
-    conn = conectar()
-    prods = pd.read_sql("SELECT codigo, nome FROM produtos", conn)
-    lista = [f"{r['codigo']} - {r['nome']}" for i, r in prods.iterrows()]
-    conn.close()
-    if lista:
-        with st.form("entrada"):
-            escolha = st.selectbox("Selecione o Produto", lista)
-            cx_novas = st.number_input("Quantidade de Caixas Recebidas", min_value=1, step=1)
-            if st.form_submit_button("Confirmar Entrada"):
-                cod_p = escolha.split(" - ")[0]
+elif menu == "📦 Gestão de Produtos":
+    st.header("📦 Gestão de Produtos e Estoque")
+    
+    tab1, tab2, tab3 = st.tabs(["📥 Repor Estoque", "🆕 Cadastrar Novo Produto", "💲 Atualizar Preço"])
+    
+    # --- ABA 1: REPOR ESTOQUE (PRODUTOS EXISTENTES) ---
+    with tab1:
+        conn = conectar()
+        prods = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
+        lista = [f"{r['codigo']} - {r['nome']}" for i, r in prods.iterrows()]
+        conn.close()
+        
+        if lista:
+            with st.form("entrada"):
+                escolha = st.selectbox("Selecione o Produto para repor", lista)
+                cx_novas = st.number_input("Quantidade de Caixas/Unidades Recebidas", min_value=1, step=1)
+                if st.form_submit_button("Confirmar Entrada"):
+                    cod_p = escolha.split(" - ")[0]
+                    conn = conectar()
+                    m2_cx = conn.execute("SELECT m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p,)).fetchone()[0]
+                    total_entrada = cx_novas * m2_cx
+                    conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE codigo = ?", (total_entrada, cod_p),)
+                    conn.commit()
+                    conn.close()
+                    st.success(f"✅ Estoque atualizado com sucesso!")
+                    time.sleep(1)
+                    st.rerun()
+        else:
+            st.info("Nenhum produto cadastrado para repor.")
+
+    # --- ABA 2: CADASTRAR NOVO PRODUTO ---
+    with tab2:
+        st.info("💡 **Dica para Argamassa, Rejunte, etc:** Como são vendidos por unidade (saco/pacote), coloque o **Rendimento** como **1**. O preço será o valor de 1 unidade.")
+        with st.form("novo_produto"):
+            c1, c2 = st.columns(2)
+            with c1:
+                novo_codigo = st.text_input("Código do Produto (Ex: ARG01, 0015)")
+                novo_nome = st.text_input("Nome do Produto (Ex: Argamassa AC3 20kg)")
+            with c2:
+                novo_rendimento = st.number_input("Rendimento por Caixa/Unid (m²)", min_value=0.01, step=0.01, value=1.00)
+                novo_preco = st.number_input("Preço por m² (ou da Unidade) R$", min_value=0.01, step=0.10, value=10.00)
+            
+            estoque_inicial = st.number_input("Estoque Inicial (Caixas/Unidades)", min_value=0, step=1, value=0)
+            
+            if st.form_submit_button("💾 Cadastrar Produto"):
+                if novo_codigo and novo_nome:
+                    m2_total_inicial = estoque_inicial * novo_rendimento
+                    conn = conectar()
+                    try:
+                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (?,?,?,?,?)", 
+                                     (novo_codigo, novo_nome, novo_rendimento, novo_preco, m2_total_inicial))
+                        conn.commit()
+                        st.success(f"✅ Produto '{novo_nome}' cadastrado com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("❌ Erro: Já existe um produto cadastrado com este código.")
+                    finally:
+                        conn.close()
+                else:
+                    st.warning("⚠️ Código e Nome são campos obrigatórios.")
+
+    # --- ABA 3: ATUALIZAR PREÇO ---
+    with tab3:
+        if lista:
+            prod_preco = st.selectbox("Selecione o Produto para alterar o valor:", [""] + lista)
+            if prod_preco:
+                cod_p2 = prod_preco.split(" - ")[0]
                 conn = conectar()
-                m2_cx = conn.execute("SELECT m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p,)).fetchone()[0]
-                total_entrada = cx_novas * m2_cx
-                conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE codigo = ?", (total_entrada, cod_p),)
-                conn.commit()
+                dados_p = conn.execute("SELECT preco_m2, m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p2,)).fetchone()
                 conn.close()
-                st.success(f"✅ Estoque atualizado: +{total_entrada:.2f} m² adicionados!")
-                time.sleep(1)
-                st.rerun()
+                
+                preco_atual = dados_p[0]
+                rend = dados_p[1]
+                preco_cx_atual = preco_atual * rend
+                
+                st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m²/unidade (Valor da Caixa/Saco fechado: R$ {preco_cx_atual:,.2f})")
+                
+                with st.form("form_preco"):
+                    novo_valor = st.number_input("Novo Preço por m² / Unidade (R$)", min_value=0.01, step=0.10, value=float(preco_atual))
+                    if st.form_submit_button("Atualizar Preço"):
+                        conn = conectar()
+                        conn.execute("UPDATE produtos SET preco_m2 = ? WHERE codigo = ?", (novo_valor, cod_p2))
+                        conn.commit()
+                        conn.close()
+                        st.success("✅ Preço atualizado com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+        else:
+            st.info("Nenhum produto cadastrado.")
