@@ -126,8 +126,7 @@ st.markdown(
 # --- 3. CAMADA DE DADOS (SUPABASE POSTGRESQL) ---
 def conectar():
     # Substitua [SUA_SENHA_AQUI] pela senha que você gerou no Supabase!
-    return psycopg2.connect("postgresql://postgres.eqynneburaxsgfqyjjcd:tnAmjlBG7bwR2nUz
-@aws-0-sa-east-1.pooler.supabase.com:6543/postgres")
+    return psycopg2.connect("postgresql://postgres.eqynneburaxsgfqyjjcd:tnAmjlBG7bwR2nUz@aws-0-sa-east-1.pooler.supabase.com:6543/postgres")
 
 def inicializar_banco():
     conn = conectar()
