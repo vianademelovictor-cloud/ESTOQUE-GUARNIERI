@@ -1,2 +1,5 @@
 streamlit
+pandas
 fpdf
+requests
+psycopg2-binary==2.9.9
