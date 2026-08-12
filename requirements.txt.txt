@@ -1,6 +1,0 @@
-streamlit
-pandas
-fpdf
-requests
-pytest
-psycopg2-binary==2.9.9
