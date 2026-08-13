@@ -1,6 +1,7 @@
 # --- IMPORTAÇÃO DE BIBLIOTECAS ---
 import io
 import math
+import sqlite3
 import time
 import urllib.parse
 import json 
@@ -10,10 +11,6 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
-import psycopg2
-import warnings
-
-warnings.filterwarnings('ignore', category=UserWarning)
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -23,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- 2. SISTEMA DE DESIGN (PALETA AZUL MARINHO & BOTÕES PRETOS) ---
+# --- 2. SISTEMA DE DESIGN ---
 st.markdown(
     """
     <style>
@@ -122,54 +119,44 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- 3. CAMADA DE DADOS (SUPABASE POSTGRESQL) ---
+# --- 3. CAMADA DE DADOS (SQLITE LOCAL) ---
 def conectar():
-    return psycopg2.connect(
-        "postgresql://postgres.eqynneburaxsgfqyjjcd:tnAmjlBG7bwR2nUz@aws-0-sa-east-1.pooler.supabase.com:6543/postgres"
-    )
+    return sqlite3.connect("estoque_piso.db", check_same_thread=False)
 
 def inicializar_banco():
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("""CREATE TABLE IF NOT EXISTS public.produtos 
-        (id SERIAL PRIMARY KEY, codigo TEXT UNIQUE, nome TEXT, 
-         m2_por_caixa NUMERIC, preco_m2 NUMERIC, m2_total NUMERIC)""")
-    cursor.execute("""CREATE TABLE IF NOT EXISTS public.clientes 
-        (id SERIAL PRIMARY KEY, nome TEXT, cpf TEXT UNIQUE, 
+    cursor.execute("""CREATE TABLE IF NOT EXISTS produtos 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
+         m2_por_caixa REAL, preco_m2 REAL, m2_total REAL)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS clientes 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, 
          telefone TEXT, endereco TEXT, bairro TEXT, cep TEXT)""")
-    cursor.execute("""CREATE TABLE IF NOT EXISTS public.vendas_cabecalho 
-        (id SERIAL PRIMARY KEY, data_venda TEXT, cliente_id INTEGER, 
-         total_pago NUMERIC, forma_pagamento TEXT)""")
-    cursor.execute("""CREATE TABLE IF NOT EXISTS public.vendas_itens 
-        (id SERIAL PRIMARY KEY, venda_id INTEGER, produto TEXT, 
-         qtd NUMERIC, unitario NUMERIC, subtotal NUMERIC, caixas INTEGER)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS vendas_cabecalho 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, data_venda TEXT, cliente_id INTEGER, 
+         total_pago REAL, forma_pagamento TEXT)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS vendas_itens 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER, produto TEXT, 
+         qtd REAL, unitario REAL, subtotal REAL, caixas INTEGER)""")
     
-    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='vendas_itens'")
-    colunas_itens = [row[0] for row in cursor.fetchall()]
+    cursor.execute("PRAGMA table_info(vendas_itens)")
+    colunas_itens = [info[1] for info in cursor.fetchall()]
     if "caixas" not in colunas_itens:
-        cursor.execute("ALTER TABLE public.vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE vendas_itens ADD COLUMN caixas INTEGER DEFAULT 0")
         
-    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='vendas_cabecalho'")
-    colunas_vendas = [row[0] for row in cursor.fetchall()]
+    cursor.execute("PRAGMA table_info(vendas_cabecalho)")
+    colunas_vendas = [info[1] for info in cursor.fetchall()]
     if "forma_pagamento" not in colunas_vendas:
-        cursor.execute("ALTER TABLE public.vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'")
+        cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'")
         
     conn.commit()
-    cursor.close()
     conn.close()
 
 inicializar_banco()
 
 # --- 4. MODAL DE RECIBO ---
 @st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
-def exibir_recibo(
-    cliente_info,
-    itens_carrinho,
-    total_geral,
-    pedido_id,
-    forma_paga,
-    desconto_valor=0.0,
-):
+def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, desconto_valor=0.0):
     st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom:0;'>GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>", unsafe_allow_html=True)
     st.write("<p style='text-align: center; color: #94a3b8;'><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</p>", unsafe_allow_html=True)
     st.divider()
@@ -398,9 +385,9 @@ if menu == "⚖️ Início":
         st.markdown(
             """
             <div style="text-align: center; padding: 10px;">
-                <h3 style="margin-bottom: 8px;">Bem-vindo ao Painel de Controle (Nuvem)</h3>
+                <h3 style="margin-bottom: 8px;">Bem-vindo ao Painel de Controle</h3>
                 <p style="color: #94a3b8; font-size: 1.05rem; margin: 0;">
-                    Banco de dados 100% online e seguro ativado. Seus dados estão protegidos.
+                    Utilize o menu lateral à esquerda <b>SERVIÇOS GUARNIERI</b> para acessar os módulos de vendas, reposição de estoque, controle de estoque e consulta de clientes.
                 </p>
             </div>
         """, unsafe_allow_html=True,
@@ -409,12 +396,9 @@ if menu == "⚖️ Início":
 elif menu == "🚨 Alerta de Estoque Baixo":
     st.header("🚨 Alerta de Reposição de Estoque")
     conn = conectar()
-    df_raw = pd.read_sql("SELECT * FROM public.produtos", conn)
+    df_raw = pd.read_sql("SELECT * FROM produtos", conn)
     conn.close()
     if not df_raw.empty:
-        df_raw["m2_total"] = df_raw["m2_total"].astype(float)
-        df_raw["m2_por_caixa"] = df_raw["m2_por_caixa"].astype(float)
-        
         df_raw["Caixas Fechadas"] = df_raw.apply(
             lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1,
         )
@@ -433,7 +417,7 @@ elif menu == "🚨 Alerta de Estoque Baixo":
             k1, k2 = st.columns(2)
             k1.metric("Produtos em Situação Crítica", f"{len(df_critico)} item(ns)")
             k2.metric("Total de Caixas a Repor (Mínimo)", f"{df_critico['Sugestão de Reposição (Cx)'].sum():,} cx")
-            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas/unidades** em estoque.")
+            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas/unidades** em estoque. Recomenda-se realizar o pedido de reposição.")
             colunas = ["Cód", "Produto", "Caixas Atuais", "Sugestão de Reposição (Cx)", "Rendimento (m²/Cx)", "Saldo Atual (m²)",]
             st.dataframe(df_critico_exib[colunas], use_container_width=True, hide_index=True)
         else:
@@ -444,7 +428,7 @@ elif menu == "🚨 Alerta de Estoque Baixo":
 elif menu == "🛒 Realizar Venda":
     st.header("🛒 Novo Pedido de Venda")
     conn = conectar()
-    clientes_df = pd.read_sql("SELECT * FROM public.clientes", conn)
+    clientes_df = pd.read_sql("SELECT * FROM clientes", conn)
     conn.close()
     
     if clientes_df.empty:
@@ -459,6 +443,7 @@ elif menu == "🛒 Realizar Venda":
                     "Digite ou selecione o Nome do Cliente:",
                     options=[""] + lista_nomes_clientes,
                     index=0,
+                    help="Comece a digitar o nome do cliente para pesquisar.",
                 )
             with col_c2:
                 forma_pago = st.selectbox(
@@ -476,7 +461,7 @@ elif menu == "🛒 Realizar Venda":
                 st.subheader("2. Adicionar Produtos")
                 
                 conn = conectar()
-                prods_df = pd.read_sql("SELECT codigo, nome FROM public.produtos ORDER BY nome", conn)
+                prods_df = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
                 conn.close()
                 
                 if prods_df.empty:
@@ -488,34 +473,30 @@ elif menu == "🛒 Realizar Venda":
                         "🔍 Digite ou selecione o Produto (Código ou Nome):",
                         options=lista_produtos,
                         index=0,
+                        help="Você pode digitar tanto o código numérico quanto o nome do piso/material."
                     )
                     
                     if prod_selecionado:
                         cod = prod_selecionado.split(" - ")[0]
                         
                         conn = conectar()
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM public.produtos WHERE codigo = %s", (cod,))
-                        p = cursor.fetchone()
-                        cursor.close()
+                        p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,),).fetchone()
                         conn.close()
                         
                         if p:
-                            p_m2_cx = float(p[1])
-                            p_preco = float(p[2])
-                            preco_caixa = p_m2_cx * p_preco
-                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{float(p[3]):.2f} m²** | Rendimento: **{p_m2_cx} m²/cx** | **Preço Unitário (Caixa/Saco): R$ {preco_caixa:,.2f}**")
+                            preco_caixa = p[1] * p[2]
+                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço Unitário (Caixa/Saco): R$ {preco_caixa:,.2f}**")
                             m2_desejado = st.number_input("Quantos m² (ou unidades) o cliente precisa?", min_value=0.0, step=0.1)
                             
                             if m2_desejado > 0:
-                                qtd_caixas = math.ceil(m2_desejado / p_m2_cx) if p_m2_cx > 0 else 1
-                                m2_final = round(qtd_caixas * p_m2_cx, 2) if p_m2_cx > 0 else m2_desejado
-                                v_total = round(m2_final * p_preco, 2)
+                                qtd_caixas = math.ceil(m2_desejado / p[1]) if p[1] > 0 else 1
+                                m2_final = round(qtd_caixas * p[1], 2) if p[1] > 0 else m2_desejado
+                                v_total = round(m2_final * p[2], 2)
                                 st.warning(f"💡 Venda calculada: **{qtd_caixas} caixas/unid.** ({m2_final} m²) = **R$ {v_total:,.2f}**")
                                 
                                 if st.button("➕ Adicionar ao Carrinho"):
                                     st.session_state.carrinho.append({
-                                        "prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p_preco, "total": v_total,
+                                        "prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total,
                                     })
                                     st.success("Adicionado!")
                                     time.sleep(0.5)
@@ -542,22 +523,21 @@ elif menu == "🛒 Realizar Venda":
                         conn = conectar()
                         cursor = conn.cursor()
                         cursor.execute(
-                            """INSERT INTO public.vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) 
-                                             VALUES (%s,%s,%s,%s) RETURNING id""",
-                            (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago)
+                            """INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) 
+                                             VALUES (?,?,?,?)""",
+                            (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago,),
                         )
-                        v_id = cursor.fetchone()[0]
+                        v_id = cursor.lastrowid
                         
                         for item in st.session_state.carrinho:
                             cursor.execute(
-                                """INSERT INTO public.vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) 
-                                                 VALUES (%s,%s,%s,%s,%s,%s)""",
-                                (v_id, item["prod"], item["qtd"], item["unit"], item["total"], item["caixas"])
+                                """INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) 
+                                                 VALUES (?,?,?,?,?,?)""",
+                                (v_id, item["prod"], item["qtd"], item["unit"], item["total"], item["caixas"],),
                             )
-                            cursor.execute("UPDATE public.produtos SET m2_total = m2_total - %s WHERE codigo = %s", (item["qtd"], item["cod"]))
+                            cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item["qtd"], item["cod"]),)
                             
                         conn.commit()
-                        cursor.close()
                         conn.close()
                         
                         exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, desconto_valor)
@@ -568,13 +548,9 @@ elif menu == "🛒 Realizar Venda":
 elif menu == "📋 Estoque":
     st.header("📋 Controle de Estoque")
     conn = conectar()
-    df_raw = pd.read_sql("SELECT * FROM public.produtos", conn)
+    df_raw = pd.read_sql("SELECT * FROM produtos", conn)
     conn.close()
     if not df_raw.empty:
-        df_raw["m2_total"] = df_raw["m2_total"].astype(float)
-        df_raw["m2_por_caixa"] = df_raw["m2_por_caixa"].astype(float)
-        df_raw["preco_m2"] = df_raw["preco_m2"].astype(float)
-        
         df_raw["Caixas Fechadas"] = df_raw.apply(
             lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1,
         )
@@ -650,16 +626,14 @@ elif menu == "👤 Cadastro de Cliente":
         if st.form_submit_button("💾 Salvar Cliente"):
             if n and c:
                 conn = conectar()
-                cursor = conn.cursor()
                 try:
-                    cursor.execute("INSERT INTO public.clientes (nome, cpf, telefone, endereco, bairro, cep) VALUES (%s,%s,%s,%s,%s,%s)", (n, c, t, e, b, cp))
+                    conn.execute("INSERT INTO clientes (nome, cpf, telefone, endereco, bairro, cep) VALUES (?,?,?,?,?,?)", (n, c, t, e, b, cp),)
                     conn.commit()
                     st.success("✅ Cliente cadastrado com sucesso!")
                     st.session_state.endereco_api = {"logradouro": "", "bairro": "", "localidade": "", "uf": ""}
-                except psycopg2.IntegrityError:
+                except Exception:
                     st.error("❌ Erro: Este CPF já está cadastrado.")
                 finally:
-                    cursor.close()
                     conn.close()
             else:
                 st.warning("⚠️ Nome e CPF são campos obrigatórios.")
@@ -667,7 +641,7 @@ elif menu == "👤 Cadastro de Cliente":
 elif menu == "🔍 Buscar Cliente":
     st.header("🔍 Consultar e Listar Clientes")
     conn = conectar()
-    all_cli = pd.read_sql("SELECT * FROM public.clientes", conn)
+    all_cli = pd.read_sql("SELECT * FROM clientes", conn)
     conn.close()
     if all_cli.empty:
         st.info("Nenhum cliente cadastrado no momento.")
@@ -679,6 +653,7 @@ elif menu == "🔍 Buscar Cliente":
                 "Digite ou selecione o Nome do Cliente:",
                 options=[""] + lista_nomes,
                 index=0,
+                help="Conforme você digita o primeiro nome, as opções vão aparecendo.",
             )
             if nome_selecionado:
                 cli = all_cli[all_cli["nome"] == nome_selecionado].iloc[0]
@@ -691,10 +666,8 @@ elif menu == "🔍 Buscar Cliente":
                 st.divider()
                 if st.button("🗑️ Excluir este Cadastro"):
                     conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM public.clientes WHERE id = %s", (int(cli["id"]),))
+                    conn.execute("DELETE FROM clientes WHERE id = ?", (int(cli["id"]),))
                     conn.commit()
-                    cursor.close()
                     conn.close()
                     st.success("Cadastro excluído com sucesso!")
                     time.sleep(1)
@@ -714,16 +687,15 @@ elif menu == "📈 Histórico de Vendas":
     st.header("📈 Dashboard e Histórico Completo de Vendas")
     conn = conectar()
     query = """
-        SELECT v.id as "Pedido", v.data_venda as "Data", c.nome as "Cliente", 
-               v.forma_pagamento as "Pagamento", v.total_pago as "Valor Total"
-        FROM public.vendas_cabecalho v 
-        JOIN public.clientes c ON v.cliente_id = c.id 
+        SELECT v.id as 'Pedido', v.data_venda as 'Data', c.nome as 'Cliente', 
+               v.forma_pagamento as 'Pagamento', v.total_pago as 'Valor Total'
+        FROM vendas_cabecalho v 
+        JOIN clientes c ON v.cliente_id = c.id 
         ORDER BY v.id DESC
     """
     df_h = pd.read_sql(query, conn)
     conn.close()
     if not df_h.empty:
-        df_h["Valor Total"] = df_h["Valor Total"].astype(float)
         st.subheader("📊 Indicadores de Desempenho")
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Pedidos", len(df_h))
@@ -753,18 +725,17 @@ elif menu == "🏆 Ranking de Clientes":
     st.header("🏆 Ranking dos Melhores Clientes")
     conn = conectar()
     query_ranking = """
-        SELECT c.nome as "Cliente", c.cpf as "CPF", c.telefone as "Telefone", 
-               COUNT(v.id) as "Total de Pedidos", 
-               SUM(v.total_pago) as "Total Comprado (R$)"
-        FROM public.vendas_cabecalho v 
-        JOIN public.clientes c ON v.cliente_id = c.id 
+        SELECT c.nome as 'Cliente', c.cpf as 'CPF', c.telefone as 'Telefone', 
+               COUNT(v.id) as 'Total de Pedidos', 
+               SUM(v.total_pago) as 'Total Comprado (R$)'
+        FROM vendas_cabecalho v 
+        JOIN clientes c ON v.cliente_id = c.id 
         GROUP BY c.id
         ORDER BY SUM(v.total_pago) DESC
     """
     df_rank = pd.read_sql(query_ranking, conn)
     conn.close()
     if not df_rank.empty:
-        df_rank["Total Comprado (R$)"] = df_rank["Total Comprado (R$)"].astype(float)
         categorias = []
         for idx in range(len(df_rank)):
             if idx == 0:
@@ -786,9 +757,10 @@ elif menu == "📦 Gestão de Produtos":
     
     tab1, tab2, tab3 = st.tabs(["📥 Repor Estoque", "🆕 Cadastrar Novo Produto", "💲 Atualizar Preço"])
     
+    # --- ABA 1: REPOR ESTOQUE (PRODUTOS EXISTENTES) ---
     with tab1:
         conn = conectar()
-        prods = pd.read_sql("SELECT codigo, nome FROM public.produtos ORDER BY nome", conn)
+        prods = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
         lista = [f"{r['codigo']} - {r['nome']}" for i, r in prods.iterrows()]
         conn.close()
         
@@ -799,13 +771,10 @@ elif menu == "📦 Gestão de Produtos":
                 if st.form_submit_button("Confirmar Entrada"):
                     cod_p = escolha.split(" - ")[0]
                     conn = conectar()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT m2_por_caixa FROM public.produtos WHERE codigo = %s", (cod_p,))
-                    m2_cx = float(cursor.fetchone()[0])
+                    m2_cx = conn.execute("SELECT m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p,)).fetchone()[0]
                     total_entrada = cx_novas * m2_cx
-                    cursor.execute("UPDATE public.produtos SET m2_total = m2_total + %s WHERE codigo = %s", (total_entrada, cod_p))
+                    conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE codigo = ?", (total_entrada, cod_p),)
                     conn.commit()
-                    cursor.close()
                     conn.close()
                     st.success(f"✅ Estoque atualizado com sucesso!")
                     time.sleep(1)
@@ -813,6 +782,7 @@ elif menu == "📦 Gestão de Produtos":
         else:
             st.info("Nenhum produto cadastrado para repor.")
 
+    # --- ABA 2: CADASTRAR NOVO PRODUTO ---
     with tab2:
         st.info("💡 **Dica para Argamassa, Rejunte, etc:** Como são vendidos por unidade (saco/pacote), coloque o **Rendimento** como **1**. O preço será o valor de 1 unidade.")
         with st.form("novo_produto"):
@@ -830,48 +800,42 @@ elif menu == "📦 Gestão de Produtos":
                 if novo_codigo and novo_nome:
                     m2_total_inicial = estoque_inicial * novo_rendimento
                     conn = conectar()
-                    cursor = conn.cursor()
                     try:
-                        cursor.execute("INSERT INTO public.produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (%s,%s,%s,%s,%s)", 
+                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (?,?,?,?,?)", 
                                      (novo_codigo, novo_nome, novo_rendimento, novo_preco, m2_total_inicial))
                         conn.commit()
                         st.success(f"✅ Produto '{novo_nome}' cadastrado com sucesso!")
                         time.sleep(1)
                         st.rerun()
-                    except psycopg2.IntegrityError:
+                    except sqlite3.IntegrityError:
                         st.error("❌ Erro: Já existe um produto cadastrado com este código.")
                     finally:
-                        cursor.close()
                         conn.close()
                 else:
                     st.warning("⚠️ Código e Nome são campos obrigatórios.")
 
+    # --- ABA 3: ATUALIZAR PREÇO ---
     with tab3:
         if lista:
             prod_preco = st.selectbox("Selecione o Produto para alterar o valor:", [""] + lista)
             if prod_preco:
                 cod_p2 = prod_preco.split(" - ")[0]
                 conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("SELECT preco_m2, m2_por_caixa FROM public.produtos WHERE codigo = %s", (cod_p2,))
-                dados_p = cursor.fetchone()
-                cursor.close()
+                dados_p = conn.execute("SELECT preco_m2, m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p2,)).fetchone()
                 conn.close()
                 
-                preco_atual = float(dados_p[0])
-                rend = float(dados_p[1])
+                preco_atual = dados_p[0]
+                rend = dados_p[1]
                 preco_cx_atual = preco_atual * rend
                 
                 st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m²/unidade (Valor da Caixa/Saco fechado: R$ {preco_cx_atual:,.2f})")
                 
                 with st.form("form_preco"):
-                    novo_valor = st.number_input("Novo Preço por m² / Unidade (R$)", min_value=0.01, step=0.10, value=preco_atual)
+                    novo_valor = st.number_input("Novo Preço por m² / Unidade (R$)", min_value=0.01, step=0.10, value=float(preco_atual))
                     if st.form_submit_button("Atualizar Preço"):
                         conn = conectar()
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE public.produtos SET preco_m2 = %s WHERE codigo = %s", (novo_valor, cod_p2))
+                        conn.execute("UPDATE produtos SET preco_m2 = ? WHERE codigo = ?", (novo_valor, cod_p2))
                         conn.commit()
-                        cursor.close()
                         conn.close()
                         st.success("✅ Preço atualizado com sucesso!")
                         time.sleep(1)
