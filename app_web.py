@@ -51,7 +51,6 @@ def conectar():
     return libsql.connect(url, auth_token=token)
 
 def carregar_dataframe(query, conn, params=None):
-    # Função segura para evitar conflitos de driver com o Pandas
     cursor = conn.cursor()
     if params:
         cursor.execute(query, params)
@@ -88,111 +87,92 @@ def inicializar_banco():
     colunas_vendas = [info[1] for info in cursor.fetchall()]
     if "forma_pagamento" not in colunas_vendas:
         cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN forma_pagamento TEXT DEFAULT 'Não Informado'")
+    if "status_entrega" not in colunas_vendas:
+        cursor.execute("ALTER TABLE vendas_cabecalho ADD COLUMN status_entrega TEXT DEFAULT 'Pendente'")
         
     conn.commit()
     conn.close()
 
 inicializar_banco()
 
-# --- 4. MODAL DE RECIBO ---
-@st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
-def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, desconto_valor=0.0):
-    st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom:0;'>GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>", unsafe_allow_html=True)
-    st.write("<p style='text-align: center; color: #94a3b8;'><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</p>", unsafe_allow_html=True)
-    st.divider()
-    
-    c1, c2 = st.columns(2)
-    c1.write(f"**Data:** {datetime.now().strftime('%d/%m/%Y')}")
-    c2.write(f"**PEDIDO Nº:** {pedido_id:04d}")
-    st.write(f"**Cliente:** {cliente_info['nome']}")
-    st.write(f"**Endereço:** {cliente_info['endereco']}, {cliente_info['bairro']}")
-    st.write(f"**Forma de Pagamento:** {forma_paga}")
-    st.divider()
-    
-    df_recibo = pd.DataFrame(itens_carrinho)
-    df_recibo = df_recibo.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"})
-    st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
-    
-    if desconto_valor > 0:
-        st.write(f"<p style='text-align: right; color: #38bdf8;'>Desconto Aplicado: - R$ {desconto_valor:,.2f}</p>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: right; color: #ffffff;'>TOTAL R$ {total_geral:,.2f}</h3>", unsafe_allow_html=True)
-
-    linhas_tabela = ""
-    for item in itens_carrinho:
-        linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td></tr>"
+# --- 4. FUNÇÃO REUTILIZÁVEL DE RECIBO (MODAL / PDF / WHATSAPP) ---
+def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, data_venda_str):
+    with st.expander(f"📄 Opções do Recibo / Comprovante (Pedido #{pedido_id:04d})", expanded=False):
+        st.write(f"**Data da Venda:** {data_venda_str}")
+        st.write(f"**Forma de Pagamento:** {forma_paga}")
         
-    linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>" if desconto_valor > 0 else ""
+        df_recibo = pd.DataFrame(itens_carrinho)
+        if "prod" in df_recibo.columns:
+            df_recibo = df_recibo.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"})
+        st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
+        st.markdown(f"<h3 style='text-align: right; color: #ffffff;'>TOTAL R$ {total_geral:,.2f}</h3>", unsafe_allow_html=True)
 
-    html_recibo = f"""
-    <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} .header {{ text-align: center; color: #1e5d2d; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table>{linha_desconto}<div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
-    """
-    
-    conteudo_safe = json.dumps(html_recibo)
-    html_js = f"<div><button onclick=\"imprimirRecibo()\" style=\"width: 100%; background-color: #000000; color: white; padding: 12px; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; font-family: sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\">🖨️ Imprimir / Salvar Recibo</button></div><script>function imprimirRecibo() {{ const janela = window.open('', '', 'width=800,height=600'); janela.document.write({conteudo_safe}); janela.document.close(); janela.focus(); setTimeout(() => {{ janela.print(); janela.close(); }}, 500); }}</script>"
-    components.html(html_js, height=70)
+        # Montagem do HTML para Impressão
+        linhas_tabela = ""
+        for _, item in df_recibo.iterrows():
+            linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['DISCRIMINAÇÃO']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['QTD CAIXAS']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['TOTAL m²']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['TOTAL R$']:,.2f}</td></tr>"
 
-    # --- GERADOR DE PDF ---
-    def limpar_texto(texto):
-        return str(texto).encode('latin-1', 'ignore').decode('latin-1')
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(190, 10, "GUARNIERI MATERIAIS DE CONSTRUCAO", ln=True, align="C")
-    
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(190, 7, "Rua Ana Herminia Trento Roque, 902 - Limeira - SP", ln=True, align="C")
-    pdf.cell(190, 7, "Fone: (19) 9 9473-6066", ln=True, align="C")
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(190, 10, f"PEDIDO DE VENDA: {pedido_id:04d}", ln=True)
-    
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(190, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
-    pdf.cell(190, 7, limpar_texto(f"Cliente: {cliente_info['nome']}"), ln=True)
-    pdf.cell(190, 7, limpar_texto(f"Endereco: {cliente_info['endereco']}, {cliente_info['bairro']}"), ln=True)
-    pdf.cell(190, 7, limpar_texto(f"Forma de Pagamento: {forma_paga}"), ln=True)
-    pdf.ln(5)
-    
-    pdf.set_fill_color(240, 240, 240)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
-    pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
-    pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
-    pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
-    
-    pdf.set_font("Arial", "", 10)
-    for i in itens_carrinho:
-        pdf.cell(80, 8, limpar_texto(i["prod"]), 1)
-        pdf.cell(30, 8, str(i["caixas"]), 1, 0, "C")
-        pdf.cell(40, 8, f"{i['qtd']:.2f}", 1, 0, "C")
-        pdf.cell(40, 8, f"R$ {i['total']:,.2f}", 1, 1, "R")
+        html_recibo = f"""
+        <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} .header {{ text-align: center; color: #1e5d2d; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {data_venda_str} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table><div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
+        """
         
-    if desconto_valor > 0:
-        pdf.ln(2)
-        pdf.cell(190, 7, limpar_texto(f"Desconto: - R$ {desconto_valor:,.2f}"), ln=True, align="R")
-        
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(190, 10, f"VALOR TOTAL: R$ {total_geral:,.2f}", ln=True, align="R")
-    
-    pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
-    
-    st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", use_container_width=True)
+        conteudo_safe = json.dumps(html_recibo)
+        html_js = f"<div><button onclick=\"imprimirRecibo()\" style=\"width: 100%; background-color: #000000; color: white; padding: 10px; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; font-family: sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\">🖨️ Imprimir / Salvar Recibo</button></div><script>function imprimirRecibo() {{ const janela = window.open('', '', 'width=800,height=600'); janela.document.write({conteudo_safe}); janela.document.close(); janela.focus(); setTimeout(() => {{ janela.print(); janela.close(); }}, 500); }}</script>"
+        components.html(html_js, height=60)
 
-    # --- GERADOR DE LINK WHATSAPP ---
-    msg_recibo = (f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n")
-    for item in itens_carrinho:
-        msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
-    if desconto_valor > 0:
-        msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
-    msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
-    
-    msg_url = urllib.parse.quote(msg_recibo)
-    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
-    st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
+        # Gerador de PDF
+        def limpar_texto(texto):
+            return str(texto).encode('latin-1', 'ignore').decode('latin-1')
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(190, 10, "GUARNIERI MATERIAIS DE CONSTRUCAO", ln=True, align="C")
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(190, 7, "Rua Ana Herminia Trento Roque, 902 - Limeira - SP", ln=True, align="C")
+        pdf.cell(190, 7, "Fone: (19) 9 9473-6066", ln=True, align="C")
+        pdf.ln(10)
+        
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(190, 10, f"PEDIDO DE VENDA: {pedido_id:04d}", ln=True)
+        pdf.set_font("Arial", "", 11)
+        pdf.cell(190, 7, f"Data: {data_venda_str}", ln=True)
+        pdf.cell(190, 7, limpar_texto(f"Cliente: {cliente_info['nome']}"), ln=True)
+        pdf.cell(190, 7, limpar_texto(f"Endereco: {cliente_info['endereco']}, {cliente_info['bairro']}"), ln=True)
+        pdf.cell(190, 7, limpar_texto(f"Forma de Pagamento: {forma_paga}"), ln=True)
+        pdf.ln(5)
+        
+        pdf.set_fill_color(240, 240, 240)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
+        pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
+        pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
+        pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
+        
+        pdf.set_font("Arial", "", 10)
+        for _, item in df_recibo.iterrows():
+            pdf.cell(80, 8, limpar_texto(item["DISCRIMINAÇÃO"]), 1)
+            pdf.cell(30, 8, str(item["QTD CAIXAS"]), 1, 0, "C")
+            pdf.cell(40, 8, f"{item['TOTAL m²']:.2f}", 1, 0, "C")
+            pdf.cell(40, 8, f"R$ {item['TOTAL R$']:,.2f}", 1, 1, "R")
+            
+        pdf.ln(5)
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(190, 10, f"VALOR TOTAL: R$ {total_geral:,.2f}", ln=True, align="R")
+        
+        pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
+        st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", key=f"dl_pdf_{pedido_id}", use_container_width=True)
+
+        # Link WhatsApp
+        msg_recibo = f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {data_venda_str}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n"
+        for _, item in df_recibo.iterrows():
+            msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx ({item['TOTAL m²']}m²)\n"
+        msg_recibo += f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️"
+        
+        msg_url = urllib.parse.quote(msg_recibo)
+        link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+        st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
 # --- 5. NAVEGAÇÃO LATERAL ---
 st.sidebar.markdown("<h2 style='color:#ffffff; font-weight:800; font-size:1.3rem; margin-bottom:10px;'>SERVIÇOS GUARNIERI</h2>", unsafe_allow_html=True)
@@ -321,7 +301,7 @@ elif menu == "🛒 Realizar Venda":
                     if st.button("✅ Finalizar Venda e Salvar na Nuvem"):
                         conn = conectar()
                         cursor = conn.cursor()
-                        cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) VALUES (?,?,?,?)", (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago))
+                        cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento, status_entrega) VALUES (?,?,?,?,?)", (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago, "Pendente"))
                         v_id = cursor.lastrowid
                         
                         for item in st.session_state.carrinho:
@@ -331,7 +311,8 @@ elif menu == "🛒 Realizar Venda":
                         conn.commit()
                         conn.close()
                         
-                        exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, desconto_valor)
+                        st.success(f"Pedido #{v_id:04d} finalizado com sucesso!")
+                        renderizar_acoes_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, datetime.now().strftime('%d/%m/%Y'))
                         st.session_state.carrinho = []
 
 elif menu == "📋 Estoque":
@@ -413,17 +394,19 @@ elif menu == "👤 Cadastro de Cliente":
                 st.warning("⚠️ Nome e CPF são campos obrigatórios.")
 
 elif menu == "🔍 Buscar Cliente":
-    st.header("🔍 Consultar e Listar Clientes")
+    st.header("🔍 Consultar Ficha, Comprovantes e Entregas")
     conn = conectar()
     all_cli = carregar_dataframe("SELECT * FROM clientes", conn)
-    conn.close()
+    
     if all_cli.empty:
         st.info("Nenhum cliente cadastrado no momento.")
+        conn.close()
     else:
         with st.container(border=True):
-            st.subheader("🔎 Buscar Ficha de Cliente por Nome")
+            st.subheader("🔎 Buscar Ficha de Cliente")
             lista_nomes = sorted(all_cli["nome"].tolist())
             nome_selecionado = st.selectbox("Digite ou selecione o Nome do Cliente:", options=[""] + lista_nomes, index=0)
+            
             if nome_selecionado:
                 cli = all_cli[all_cli["nome"] == nome_selecionado].iloc[0]
                 st.markdown(f"### 📋 Ficha de: **{cli['nome']}**")
@@ -431,16 +414,96 @@ elif menu == "🔍 Buscar Cliente":
                 c1.write(f"**CPF:** {cli['cpf']}")
                 c2.write(f"**Telefone:** {cli['telefone']}")
                 c3.write(f"**CEP:** {cli['cep']}")
-                st.write(f"**Endereço:** {cli['endereco']} - **Bairro:** {cli['bairro']}")
+                st.write(f"**Endereço para Entrega:** {cli['endereco']} - **Bairro:** {cli['bairro']}")
+                
+                # --- SESSÃO DE ENTREGAS E RECIBOS ---
                 st.divider()
-                if st.button("🗑️ Excluir este Cadastro"):
-                    conn = conectar()
-                    conn.execute("DELETE FROM clientes WHERE id = ?", (int(cli["id"]),))
-                    conn.commit()
-                    conn.close()
+                st.subheader("📦 Controle de Pedidos, Entregas e Comprovantes")
+                pedidos_cli = carregar_dataframe(f"SELECT * FROM vendas_cabecalho WHERE cliente_id = {cli['id']} ORDER BY id DESC", conn)
+                
+                if pedidos_cli.empty:
+                    st.info("Nenhum pedido registrado para este cliente.")
+                else:
+                    tab_pend, tab_hist = st.tabs(["🚚 Entregas Pendentes", "✅ Histórico de Compras"])
+                    
+                    with tab_pend:
+                        pendentes = pedidos_cli[pedidos_cli['status_entrega'] == 'Pendente']
+                        if pendentes.empty:
+                            st.success("✅ Tudo certo! Nenhuma entrega pendente para este cliente.")
+                        else:
+                            for _, ped in pendentes.iterrows():
+                                with st.expander(f"🔴 Pedido Nº {ped['id']:04d} - Data: {ped['data_venda']} - R$ {ped['total_pago']:,.2f}"):
+                                    st.write(f"**Forma de Pagamento:** {ped['forma_pagamento']}")
+                                    
+                                    # Puxar itens do pedido para exibir na tabela e gerar recibo se necessário
+                                    itens_ped_raw = carregar_dataframe(f"SELECT produto as 'prod', caixas, qtd, unitario as 'unit', subtotal as 'total' FROM vendas_itens WHERE venda_id = {ped['id']}", conn)
+                                    itens_dict = itens_ped_raw.to_dict(orient="records")
+                                    
+                                    st.table(itens_ped_raw.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"}))
+                                    
+                                    # Botão para ver/baixar recibo a qualquer momento
+                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'])
+                                    
+                                    col_btn1, col_btn2 = st.columns(2)
+                                    with col_btn1:
+                                        if st.button(f"✅ Dar Baixa (Marcar como Entregue)", key=f"entregar_{ped['id']}"):
+                                            conn_up = conectar()
+                                            conn_up.execute("UPDATE vendas_cabecalho SET status_entrega = 'Entregue' WHERE id = ?", (ped['id'],))
+                                            conn_up.commit()
+                                            conn_up.close()
+                                            st.success("Baixa realizada! Pedido movido para o histórico.")
+                                            time.sleep(1)
+                                            st.rerun()
+                                    with col_btn2:
+                                        if st.button(f"🗑️ Apagar Pedido", key=f"excluir_{ped['id']}"):
+                                            conn_up = conectar()
+                                            conn_up.execute("DELETE FROM vendas_cabecalho WHERE id = ?", (ped['id'],))
+                                            conn_up.execute("DELETE FROM vendas_itens WHERE venda_id = ?", (ped['id'],))
+                                            conn_up.commit()
+                                            conn_up.close()
+                                            st.success("Pedido excluído do sistema!")
+                                            time.sleep(1)
+                                            st.rerun()
+
+                    with tab_hist:
+                        historico = pedidos_cli[pedidos_cli['status_entrega'] == 'Entregue']
+                        if historico.empty:
+                            st.info("Nenhum histórico de entregas concluídas.")
+                        else:
+                            for _, ped in historico.iterrows():
+                                with st.expander(f"🟢 Pedido Nº {ped['id']:04d} - Data: {ped['data_venda']} - R$ {ped['total_pago']:,.2f}"):
+                                    st.write(f"**Status:** Entregue ✅ | **Pagamento:** {ped['forma_pagamento']}")
+                                    
+                                    itens_ped_raw = carregar_dataframe(f"SELECT produto as 'prod', caixas, qtd, unitario as 'unit', subtotal as 'total' FROM vendas_itens WHERE venda_id = {ped['id']}", conn)
+                                    itens_dict = itens_ped_raw.to_dict(orient="records")
+                                    
+                                    st.table(itens_ped_raw.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"}))
+                                    
+                                    # Opção de recibo também no histórico
+                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'])
+                                    
+                                    if st.button(f"🗑️ Apagar Histórico", key=f"excluir_hist_{ped['id']}"):
+                                        conn_up = conectar()
+                                        conn_up.execute("DELETE FROM vendas_cabecalho WHERE id = ?", (ped['id'],))
+                                        conn_up.execute("DELETE FROM vendas_itens WHERE venda_id = ?", (ped['id'],))
+                                        conn_up.commit()
+                                        conn_up.close()
+                                        st.success("Registro apagado!")
+                                        time.sleep(1)
+                                        st.rerun()
+
+                st.divider()
+                if st.button("🗑️ Excluir Ficha do Cliente", key="del_cli"):
+                    conn_up = conectar()
+                    conn_up.execute("DELETE FROM clientes WHERE id = ?", (int(cli["id"]),))
+                    conn_up.commit()
+                    conn_up.close()
                     st.success("Cadastro excluído com sucesso!")
                     time.sleep(1)
                     st.rerun()
+                    
+        conn.close() 
+        
         st.divider()
         with st.container(border=True):
             st.subheader("📋 Lista Completa de Clientes Cadastrados")
