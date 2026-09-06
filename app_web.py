@@ -1,7 +1,6 @@
 # --- IMPORTAÇÃO DE BIBLIOTECAS ---
 import io
 import math
-import sqlite3
 import time
 import urllib.parse
 import json 
@@ -11,6 +10,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
+import libsql
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -25,103 +25,43 @@ st.markdown(
     """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-    }
-    .stApp {
-        background-color: #0a1120;
-        color: #f8fafc;
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #060d19 !important;
-        border-right: 2px solid #1e293b !important;
-    }
-    h1, h2, h3 {
-        color: #f8fafc !important;
-        font-weight: 800 !important;
-    }
-    label, p, span {
-        color: #e2e8f0 !important;
-        font-weight: 600;
-    }
-    div[data-testid="stSidebar"] label {
-        font-size: 1.05rem !important;
-        color: #f8fafc !important;
-        padding: 6px 10px !important;
-        border-radius: 8px !important;
-        transition: all 0.2s ease !important;
-    }
-    div[data-testid="stSidebar"] label:hover {
-        background: #1e293b !important;
-        color: #ffffff !important;
-    }
-    input, div[data-baseweb="select"] > div, textarea {
-        background-color: #0f172a !important;
-        color: #ffffff !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
-    }
-    div[data-testid="stForm"], 
-    div[data-testid="stBlock"] > div[style*="border"] {
-        background-color: #111c2e !important;
-        border: 1px solid #1e293b !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-    }
-    div.stButton > button, 
-    div[data-testid="stFormSubmitButton"] > button {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        font-weight: 800 !important;
-        font-size: 1rem !important;
-        border: 2px solid #ffffff !important;
-        border-radius: 8px !important;
-        padding: 10px 20px !important;
-        transition: all 0.2s ease-in-out !important;
-        width: 100%;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
-    }
-    div.stButton > button:hover, 
-    div[data-testid="stFormSubmitButton"] > button:hover {
-        background-color: #1a1a1a !important;
-        color: #ffffff !important;
-        border-color: #ffffff !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2) !important;
-    }
-    div.stButton > button *, 
-    div[data-testid="stFormSubmitButton"] > button * {
-        color: #ffffff !important;
-    }
-    [data-testid="stMetricValue"] {
-        color: #38bdf8 !important;
-        font-weight: 800 !important;
-        font-size: 2rem !important;
-    }
-    .stDataFrame {
-        border: 1px solid #1e293b !important;
-        border-radius: 10px !important;
-    }
-    .top-header {
-        text-align: center;
-        padding: 10px 0 20px 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-    }
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+    .stApp { background-color: #0a1120; color: #f8fafc; }
+    section[data-testid="stSidebar"] { background-color: #060d19 !important; border-right: 2px solid #1e293b !important; }
+    h1, h2, h3 { color: #f8fafc !important; font-weight: 800 !important; }
+    label, p, span { color: #e2e8f0 !important; font-weight: 600; }
+    div[data-testid="stSidebar"] label { font-size: 1.05rem !important; color: #f8fafc !important; padding: 6px 10px !important; border-radius: 8px !important; transition: all 0.2s ease !important; }
+    div[data-testid="stSidebar"] label:hover { background: #1e293b !important; color: #ffffff !important; }
+    input, div[data-baseweb="select"] > div, textarea { background-color: #0f172a !important; color: #ffffff !important; border: 1px solid #334155 !important; border-radius: 8px !important; }
+    div[data-testid="stForm"], div[data-testid="stBlock"] > div[style*="border"] { background-color: #111c2e !important; border: 1px solid #1e293b !important; border-radius: 12px !important; padding: 20px !important; }
+    div.stButton > button, div[data-testid="stFormSubmitButton"] > button { background-color: #000000 !important; color: #ffffff !important; font-weight: 800 !important; font-size: 1rem !important; border: 2px solid #ffffff !important; border-radius: 8px !important; padding: 10px 20px !important; transition: all 0.2s ease-in-out !important; width: 100%; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }
+    div.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover { background-color: #1a1a1a !important; color: #ffffff !important; border-color: #ffffff !important; transform: translateY(-2px) !important; box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2) !important; }
+    div.stButton > button *, div[data-testid="stFormSubmitButton"] > button * { color: #ffffff !important; }
+    [data-testid="stMetricValue"] { color: #38bdf8 !important; font-weight: 800 !important; font-size: 2rem !important; }
+    .stDataFrame { border: 1px solid #1e293b !important; border-radius: 10px !important; }
+    .top-header { text-align: center; padding: 10px 0 20px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-# --- 3. CAMADA DE DADOS (SQLITE LOCAL) ---
+# --- 3. CAMADA DE DADOS (TURSO) ---
 def conectar():
-    return sqlite3.connect("estoque_piso.db", check_same_thread=False)
+    url = st.secrets["TURSO_DATABASE_URL"]
+    token = st.secrets["TURSO_AUTH_TOKEN"]
+    return libsql.connect(url, auth_token=token)
+
+def carregar_dataframe(query, conn, params=None):
+    # Função segura para evitar conflitos de driver com o Pandas
+    cursor = conn.cursor()
+    if params:
+        cursor.execute(query, params)
+    else:
+        cursor.execute(query)
+    
+    if cursor.description:
+        cols = [desc[0] for desc in cursor.description]
+        return pd.DataFrame(cursor.fetchall(), columns=cols)
+    return pd.DataFrame()
 
 def inicializar_banco():
     conn = conectar()
@@ -179,90 +119,16 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
 
     linhas_tabela = ""
     for item in itens_carrinho:
-        linhas_tabela += f"""
-            <tr>
-                <td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td>
-                <td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td>
-                <td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td>
-                <td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td>
-            </tr>
-        """
+        linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td></tr>"
         
-    linha_desconto = ""
-    if desconto_valor > 0:
-        linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>"
+    linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>" if desconto_valor > 0 else ""
 
     html_recibo = f"""
-    <html>
-    <head>
-        <title>Recibo - Pedido {pedido_id:04d} - Guarnieri</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }}
-            .header {{ text-align: center; color: #1e5d2d; margin-bottom: 0; font-size: 24px; }}
-            .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }}
-            .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }}
-            th {{ background-color: #f2f2f6; text-align: left; }}
-            .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }}
-            .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}
-        </style>
-    </head>
-    <body>
-        <h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>
-        <div class="sub">
-            <b>Fone: (19) 9 9473-6066</b><br>
-            Rua Ana Herminia Trento Roque, 902 - Limeira - SP
-        </div>
-        <hr style="margin: 20px 0;">
-        <div class="info">
-            <p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p>
-            <p><b>Cliente:</b> {cliente_info['nome']}<br>
-            <b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br>
-            <b>Pagamento:</b> {forma_paga}</p>
-        </div>
-        <hr style="margin: 20px 0;">
-        <table>
-            <thead>
-                <tr>
-                    <th>DISCRIMINAÇÃO</th>
-                    <th style='text-align: center;'>QTD CAIXAS</th>
-                    <th style='text-align: center;'>TOTAL m²</th>
-                    <th style='text-align: right;'>TOTAL R$</th>
-                </tr>
-            </thead>
-            <tbody>
-                {linhas_tabela}
-            </tbody>
-        </table>
-        {linha_desconto}
-        <div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div>
-        <div class="pago">PAGO VIA {forma_paga.upper()}</div>
-    </body>
-    </html>
+    <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} .header {{ text-align: center; color: #1e5d2d; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table>{linha_desconto}<div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
     """
     
     conteudo_safe = json.dumps(html_recibo)
-    
-    html_js = f"""
-    <div>
-        <button onclick="imprimirRecibo()" style="width: 100%; background-color: #000000; color: white; padding: 12px; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; font-family: sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);">
-            🖨️ Imprimir / Salvar Recibo
-        </button>
-    </div>
-    <script>
-        function imprimirRecibo() {{
-            const janela = window.open('', '', 'width=800,height=600');
-            janela.document.write({conteudo_safe});
-            janela.document.close();
-            janela.focus();
-            setTimeout(() => {{
-                janela.print();
-                janela.close();
-            }}, 500);
-        }}
-    </script>
-    """
+    html_js = f"<div><button onclick=\"imprimirRecibo()\" style=\"width: 100%; background-color: #000000; color: white; padding: 12px; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; font-family: sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\">🖨️ Imprimir / Salvar Recibo</button></div><script>function imprimirRecibo() {{ const janela = window.open('', '', 'width=800,height=600'); janela.document.write({conteudo_safe}); janela.document.close(); janela.focus(); setTimeout(() => {{ janela.print(); janela.close(); }}, 500); }}</script>"
     components.html(html_js, height=70)
 
     # --- GERADOR DE PDF ---
@@ -314,111 +180,46 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
     
     pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
     
-    st.download_button(
-        label="📥 Baixar Recibo em PDF",
-        data=pdf_output,
-        file_name=f"Recibo_Guarnieri_{pedido_id}.pdf",
-        mime="application/pdf",
-        use_container_width=True,
-    )
+    st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", use_container_width=True)
 
     # --- GERADOR DE LINK WHATSAPP ---
-    msg_recibo = (
-        f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n"
-        f"-------------------------------------------\n"
-        f"*PEDIDO Nº:* {pedido_id:04d}\n"
-        f"*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n"
-        f"-------------------------------------------\n"
-        f"*CLIENTE:* {cliente_info['nome']}\n"
-        f"*PAGAMENTO:* {forma_paga}\n"
-        f"-------------------------------------------\n"
-    )
+    msg_recibo = (f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n")
     for item in itens_carrinho:
         msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
-    
     if desconto_valor > 0:
         msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
-        
-    msg_recibo += (
-        f"-------------------------------------------\n"
-        f"*VALOR TOTAL: R$ {total_geral:,.2f}*\n"
-        f"-------------------------------------------\n"
-        f"Agradecemos a preferência! 🏗️"
-    )
+    msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
     
     msg_url = urllib.parse.quote(msg_recibo)
     link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
     st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
 # --- 5. NAVEGAÇÃO LATERAL ---
-st.sidebar.markdown(
-    "<h2 style='color:#ffffff; font-weight:800; font-size:1.3rem; margin-bottom:10px;'>SERVIÇOS GUARNIERI</h2>",
-    unsafe_allow_html=True,
-)
-menu = st.sidebar.radio(
-    "Navegue pelas Opções:",
-    [
-        "⚖️ Início",
-        "🚨 Alerta de Estoque Baixo",
-        "🛒 Realizar Venda",
-        "📋 Estoque",
-        "👤 Cadastro de Cliente",
-        "🔍 Buscar Cliente",
-        "📈 Histórico de Vendas",
-        "🏆 Ranking de Clientes",
-        "📦 Gestão de Produtos",
-    ],
-)
+st.sidebar.markdown("<h2 style='color:#ffffff; font-weight:800; font-size:1.3rem; margin-bottom:10px;'>SERVIÇOS GUARNIERI</h2>", unsafe_allow_html=True)
+menu = st.sidebar.radio("Navegue pelas Opções:", ["⚖️ Início", "🚨 Alerta de Estoque Baixo", "🛒 Realizar Venda", "📋 Estoque", "👤 Cadastro de Cliente", "🔍 Buscar Cliente", "📈 Histórico de Vendas", "🏆 Ranking de Clientes", "📦 Gestão de Produtos"])
 
 # --- 6. LÓGICA DAS TELAS ---
 if menu == "⚖️ Início":
-    st.markdown(
-        """
-        <div class="top-header">
-            <div style="font-size: 80px; line-height: 1; margin-bottom: 12px;">⚖️</div>
-            <h1 style="margin: 0; font-size: 1.8rem; letter-spacing: 1px;">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h1>
-            <p style="color: #94a3b8; font-size: 1rem; margin-top: 4px; margin-bottom: 12px;">Sistema Oficial de Gestão, Vendas e Estoque</p>
-        </div>
-    """, unsafe_allow_html=True,
-    )
+    st.markdown("""<div class="top-header"><div style="font-size: 80px; line-height: 1; margin-bottom: 12px;">⚖️</div><h1 style="margin: 0; font-size: 1.8rem; letter-spacing: 1px;">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h1><p style="color: #94a3b8; font-size: 1rem; margin-top: 4px; margin-bottom: 12px;">Sistema Oficial de Gestão, Vendas e Estoque</p></div>""", unsafe_allow_html=True)
     with st.container(border=True):
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 10px;">
-                <h3 style="margin-bottom: 8px;">Bem-vindo ao Painel de Controle</h3>
-                <p style="color: #94a3b8; font-size: 1.05rem; margin: 0;">
-                    Utilize o menu lateral à esquerda <b>SERVIÇOS GUARNIERI</b> para acessar os módulos de vendas, reposição de estoque, controle de estoque e consulta de clientes.
-                </p>
-            </div>
-        """, unsafe_allow_html=True,
-        )
+        st.markdown("""<div style="text-align: center; padding: 10px;"><h3 style="margin-bottom: 8px;">Bem-vindo ao Painel de Controle</h3><p style="color: #94a3b8; font-size: 1.05rem; margin: 0;">Utilize o menu lateral à esquerda <b>SERVIÇOS GUARNIERI</b> para acessar os módulos de vendas, reposição de estoque, controle de estoque e consulta de clientes.</p></div>""", unsafe_allow_html=True)
 
 elif menu == "🚨 Alerta de Estoque Baixo":
     st.header("🚨 Alerta de Reposição de Estoque")
     conn = conectar()
-    df_raw = pd.read_sql("SELECT * FROM produtos", conn)
+    df_raw = carregar_dataframe("SELECT * FROM produtos", conn)
     conn.close()
     if not df_raw.empty:
-        df_raw["Caixas Fechadas"] = df_raw.apply(
-            lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1,
-        )
+        df_raw["Caixas Fechadas"] = df_raw.apply(lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1)
         df_critico = df_raw[df_raw["Caixas Fechadas"] < 10].copy()
         if not df_critico.empty:
             df_critico["Sugestão de Reposição (Cx)"] = 10 - df_critico["Caixas Fechadas"]
-            df_critico_exib = df_critico.rename(
-                columns={
-                    "codigo": "Cód",
-                    "nome": "Produto",
-                    "Caixas Fechadas": "Caixas Atuais",
-                    "m2_por_caixa": "Rendimento (m²/Cx)",
-                    "m2_total": "Saldo Atual (m²)",
-                }
-            )
+            df_critico_exib = df_critico.rename(columns={"codigo": "Cód", "nome": "Produto", "Caixas Fechadas": "Caixas Atuais", "m2_por_caixa": "Rendimento (m²/Cx)", "m2_total": "Saldo Atual (m²)"})
             k1, k2 = st.columns(2)
             k1.metric("Produtos em Situação Crítica", f"{len(df_critico)} item(ns)")
             k2.metric("Total de Caixas a Repor (Mínimo)", f"{df_critico['Sugestão de Reposição (Cx)'].sum():,} cx")
-            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas/unidades** em estoque. Recomenda-se realizar o pedido de reposição.")
-            colunas = ["Cód", "Produto", "Caixas Atuais", "Sugestão de Reposição (Cx)", "Rendimento (m²/Cx)", "Saldo Atual (m²)",]
+            st.warning("⚠️ **Atenção:** Os produtos listados abaixo estão com **menos de 10 caixas/unidades** em estoque.")
+            colunas = ["Cód", "Produto", "Caixas Atuais", "Sugestão de Reposição (Cx)", "Rendimento (m²/Cx)", "Saldo Atual (m²)"]
             st.dataframe(df_critico_exib[colunas], use_container_width=True, hide_index=True)
         else:
             st.success("✅ **Estoque Seguro!** Todos os seus produtos possuem 10 ou mais caixas/unidades em estoque.")
@@ -427,30 +228,31 @@ elif menu == "🚨 Alerta de Estoque Baixo":
 
 elif menu == "🛒 Realizar Venda":
     st.header("🛒 Novo Pedido de Venda")
-    conn = conectar()
-    clientes_df = pd.read_sql("SELECT * FROM clientes", conn)
-    conn.close()
     
-    if clientes_df.empty:
-        st.warning("⚠️ Nenhum cliente cadastrado. Vá até 'Cadastro de Cliente' primeiro.")
-    else:
-        lista_nomes_clientes = sorted(clientes_df["nome"].tolist())
-        with st.container(border=True):
-            st.subheader("1. Seleção de Cliente e Pagamento")
-            col_c1, col_c2 = st.columns([2, 1])
-            with col_c1:
-                cli_nome = st.selectbox(
-                    "Digite ou selecione o Nome do Cliente:",
-                    options=[""] + lista_nomes_clientes,
-                    index=0,
-                    help="Comece a digitar o nome do cliente para pesquisar.",
-                )
-            with col_c2:
-                forma_pago = st.selectbox(
-                    "Forma de Pagamento",
-                    ["Pix", "Dinheiro", "Cartão de Crédito", "Cartão de Débito"],
-                )
-                
+    with st.container(border=True):
+        st.subheader("1. Seleção de Cliente e Pagamento")
+        col_c1, col_c2 = st.columns([2, 1])
+        with col_c1:
+            busca_cli = st.text_input("🔍 Pesquisar Cliente (Nome, CPF ou Telefone):", help="Digite para filtrar instantaneamente. Deixe em branco para listar todos.")
+        with col_c2:
+            forma_pago = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão de Crédito", "Cartão de Débito"])
+            
+        conn = conectar()
+        if busca_cli:
+            query = "SELECT * FROM clientes WHERE nome LIKE ? OR cpf LIKE ? OR telefone LIKE ?"
+            param = f"%{busca_cli}%"
+            clientes_df = carregar_dataframe(query, conn, (param, param, param))
+        else:
+            clientes_df = carregar_dataframe("SELECT * FROM clientes", conn)
+        conn.close()
+        
+        if clientes_df.empty:
+            st.warning("⚠️ Nenhum cliente encontrado com a sua busca.")
+            cli_nome = None
+        else:
+            lista_nomes_clientes = sorted(clientes_df["nome"].tolist())
+            cli_nome = st.selectbox("Selecione o Cliente:", options=[""] + lista_nomes_clientes, index=0)
+            
         if cli_nome:
             cli_dados = clientes_df[clientes_df["nome"] == cli_nome].iloc[0]
             
@@ -460,32 +262,32 @@ elif menu == "🛒 Realizar Venda":
             with st.container(border=True):
                 st.subheader("2. Adicionar Produtos")
                 
+                busca_prod = st.text_input("🔍 Buscar Produto no Estoque (Nome ou Código):")
+                
                 conn = conectar()
-                prods_df = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
+                if busca_prod:
+                    query_p = "SELECT codigo, nome FROM produtos WHERE nome LIKE ? OR codigo LIKE ? ORDER BY nome"
+                    param_p = f"%{busca_prod}%"
+                    prods_df = carregar_dataframe(query_p, conn, (param_p, param_p))
+                else:
+                    prods_df = carregar_dataframe("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
                 conn.close()
                 
                 if prods_df.empty:
-                    st.warning("⚠️ Nenhum produto cadastrado no estoque.")
+                    st.warning("⚠️ Nenhum produto encontrado.")
                 else:
                     lista_produtos = [""] + [f"{r['codigo']} - {r['nome']}" for _, r in prods_df.iterrows()]
-                    
-                    prod_selecionado = st.selectbox(
-                        "🔍 Digite ou selecione o Produto (Código ou Nome):",
-                        options=lista_produtos,
-                        index=0,
-                        help="Você pode digitar tanto o código numérico quanto o nome do piso/material."
-                    )
+                    prod_selecionado = st.selectbox("Selecione o Produto:", options=lista_produtos, index=0)
                     
                     if prod_selecionado:
                         cod = prod_selecionado.split(" - ")[0]
-                        
                         conn = conectar()
-                        p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,),).fetchone()
+                        p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,)).fetchone()
                         conn.close()
                         
                         if p:
                             preco_caixa = p[1] * p[2]
-                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço Unitário (Caixa/Saco): R$ {preco_caixa:,.2f}**")
+                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço Unitário: R$ {preco_caixa:,.2f}**")
                             m2_desejado = st.number_input("Quantos m² (ou unidades) o cliente precisa?", min_value=0.0, step=0.1)
                             
                             if m2_desejado > 0:
@@ -495,9 +297,7 @@ elif menu == "🛒 Realizar Venda":
                                 st.warning(f"💡 Venda calculada: **{qtd_caixas} caixas/unid.** ({m2_final} m²) = **R$ {v_total:,.2f}**")
                                 
                                 if st.button("➕ Adicionar ao Carrinho"):
-                                    st.session_state.carrinho.append({
-                                        "prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total,
-                                    })
+                                    st.session_state.carrinho.append({"prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total})
                                     st.success("Adicionado!")
                                     time.sleep(0.5)
                                     st.rerun()
@@ -509,7 +309,6 @@ elif menu == "🛒 Realizar Venda":
                     st.table(df_c[["prod", "caixas", "qtd", "total"]])
                     
                     subtotal_pedido = df_c["total"].sum()
-                    
                     desconto_valor = st.number_input("💸 Aplicar Desconto (R$):", min_value=0.0, max_value=float(subtotal_pedido), step=1.0, value=0.0)
                     total_final = subtotal_pedido - desconto_valor
                     
@@ -519,60 +318,37 @@ elif menu == "🛒 Realizar Venda":
                         c_tot1.write(f"**Desconto Aplicado:** - R$ {desconto_valor:,.2f}")
                     st.markdown(f"<h2 style='text-align: right; color: #ffffff;'>Total a Pagar: R$ {total_final:,.2f}</h2>", unsafe_allow_html=True)
                     
-                    if st.button("✅ Finalizar Venda e Gerar Recibo"):
+                    if st.button("✅ Finalizar Venda e Salvar na Nuvem"):
                         conn = conectar()
                         cursor = conn.cursor()
-                        cursor.execute(
-                            """INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) 
-                                             VALUES (?,?,?,?)""",
-                            (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago,),
-                        )
+                        cursor.execute("INSERT INTO vendas_cabecalho (data_venda, cliente_id, total_pago, forma_pagamento) VALUES (?,?,?,?)", (datetime.now().strftime("%d/%m/%Y"), int(cli_dados["id"]), total_final, forma_pago))
                         v_id = cursor.lastrowid
                         
                         for item in st.session_state.carrinho:
-                            cursor.execute(
-                                """INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) 
-                                                 VALUES (?,?,?,?,?,?)""",
-                                (v_id, item["prod"], item["qtd"], item["unit"], item["total"], item["caixas"],),
-                            )
-                            cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item["qtd"], item["cod"]),)
+                            cursor.execute("INSERT INTO vendas_itens (venda_id, produto, qtd, unitario, subtotal, caixas) VALUES (?,?,?,?,?,?)", (v_id, item["prod"], item["qtd"], item["unit"], item["total"], item["caixas"]))
+                            cursor.execute("UPDATE produtos SET m2_total = m2_total - ? WHERE codigo = ?", (item["qtd"], item["cod"]))
                             
                         conn.commit()
                         conn.close()
                         
                         exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, desconto_valor)
                         st.session_state.carrinho = []
-        else:
-            st.info("👆 Selecione ou digite o nome do cliente acima para iniciar a venda.")
 
 elif menu == "📋 Estoque":
     st.header("📋 Controle de Estoque")
     conn = conectar()
-    df_raw = pd.read_sql("SELECT * FROM produtos", conn)
+    df_raw = carregar_dataframe("SELECT * FROM produtos", conn)
     conn.close()
     if not df_raw.empty:
-        df_raw["Caixas Fechadas"] = df_raw.apply(
-            lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1,
-        )
+        df_raw["Caixas Fechadas"] = df_raw.apply(lambda r: math.floor(r["m2_total"] / r["m2_por_caixa"]) if r["m2_por_caixa"] > 0 else 0, axis=1)
         df_raw["Preço por Caixa (R$)"] = df_raw["m2_por_caixa"] * df_raw["preco_m2"]
-        df_est = df_raw.rename(
-            columns={
-                "codigo": "Cód",
-                "nome": "Produto",
-                "m2_por_caixa": "Rendimento (m²/Caixa)",
-                "preco_m2": "Preço/m² (R$)",
-                "m2_total": "Saldo Total (m²)",
-            }
-        )
-        total_itens = len(df_est)
-        total_m2 = df_est["Saldo Total (m²)"].sum()
-        total_caixas = df_est["Caixas Fechadas"].sum()
+        df_est = df_raw.rename(columns={"codigo": "Cód", "nome": "Produto", "m2_por_caixa": "Rendimento (m²/Caixa)", "preco_m2": "Preço/m² (R$)", "m2_total": "Saldo Total (m²)"})
         k1, k2, k3 = st.columns(3)
-        k1.metric("Itens Cadastrados", total_itens)
-        k2.metric("Total de Caixas/Unidades", f"{total_caixas:,} cx")
-        k3.metric("Total em Estoque (m²)", f"{total_m2:,.2f} m²")
+        k1.metric("Itens Cadastrados", len(df_est))
+        k2.metric("Total de Caixas/Unidades", f"{df_est['Caixas Fechadas'].sum():,} cx")
+        k3.metric("Total em Estoque (m²)", f"{df_est['Saldo Total (m²)'].sum():,.2f} m²")
         st.divider()
-        colunas_ordem = ["Cód", "Produto", "Caixas Fechadas", "Preço por Caixa (R$)", "Rendimento (m²/Caixa)", "Preço/m² (R$)", "Saldo Total (m²)",]
+        colunas_ordem = ["Cód", "Produto", "Caixas Fechadas", "Preço por Caixa (R$)", "Rendimento (m²/Caixa)", "Preço/m² (R$)", "Saldo Total (m²)"]
         df_exibicao = df_est[colunas_ordem].copy()
         df_exibicao["Preço por Caixa (R$)"] = df_exibicao["Preço por Caixa (R$)"].map("R$ {:,.2f}".format)
         df_exibicao["Preço/m² (R$)"] = df_exibicao["Preço/m² (R$)"].map("R$ {:,.2f}".format)
@@ -582,7 +358,6 @@ elif menu == "📋 Estoque":
 
 elif menu == "👤 Cadastro de Cliente":
     st.header("👤 Cadastro de Novos Clientes")
-    
     if 'endereco_api' not in st.session_state:
         st.session_state.endereco_api = {"logradouro": "", "bairro": "", "localidade": "", "uf": ""}
     
@@ -598,7 +373,6 @@ elif menu == "👤 Cadastro de Cliente":
                 try:
                     resposta = requests.get(f"https://viacep.com.br/ws/{cep_busca}/json/")
                     dados = resposta.json()
-                    
                     if "erro" not in dados:
                         st.session_state.endereco_api = dados
                         st.success(f"📍 Endereço encontrado: {dados['logradouro']}, {dados['bairro']} - {dados['localidade']}/{dados['uf']}")
@@ -627,12 +401,12 @@ elif menu == "👤 Cadastro de Cliente":
             if n and c:
                 conn = conectar()
                 try:
-                    conn.execute("INSERT INTO clientes (nome, cpf, telefone, endereco, bairro, cep) VALUES (?,?,?,?,?,?)", (n, c, t, e, b, cp),)
+                    conn.execute("INSERT INTO clientes (nome, cpf, telefone, endereco, bairro, cep) VALUES (?,?,?,?,?,?)", (n, c, t, e, b, cp))
                     conn.commit()
-                    st.success("✅ Cliente cadastrado com sucesso!")
+                    st.success("✅ Cliente cadastrado com sucesso na nuvem!")
                     st.session_state.endereco_api = {"logradouro": "", "bairro": "", "localidade": "", "uf": ""}
                 except Exception:
-                    st.error("❌ Erro: Este CPF já está cadastrado.")
+                    st.error("❌ Erro: Este CPF já está cadastrado ou houve falha na rede.")
                 finally:
                     conn.close()
             else:
@@ -641,7 +415,7 @@ elif menu == "👤 Cadastro de Cliente":
 elif menu == "🔍 Buscar Cliente":
     st.header("🔍 Consultar e Listar Clientes")
     conn = conectar()
-    all_cli = pd.read_sql("SELECT * FROM clientes", conn)
+    all_cli = carregar_dataframe("SELECT * FROM clientes", conn)
     conn.close()
     if all_cli.empty:
         st.info("Nenhum cliente cadastrado no momento.")
@@ -649,12 +423,7 @@ elif menu == "🔍 Buscar Cliente":
         with st.container(border=True):
             st.subheader("🔎 Buscar Ficha de Cliente por Nome")
             lista_nomes = sorted(all_cli["nome"].tolist())
-            nome_selecionado = st.selectbox(
-                "Digite ou selecione o Nome do Cliente:",
-                options=[""] + lista_nomes,
-                index=0,
-                help="Conforme você digita o primeiro nome, as opções vão aparecendo.",
-            )
+            nome_selecionado = st.selectbox("Digite ou selecione o Nome do Cliente:", options=[""] + lista_nomes, index=0)
             if nome_selecionado:
                 cli = all_cli[all_cli["nome"] == nome_selecionado].iloc[0]
                 st.markdown(f"### 📋 Ficha de: **{cli['nome']}**")
@@ -675,45 +444,31 @@ elif menu == "🔍 Buscar Cliente":
         st.divider()
         with st.container(border=True):
             st.subheader("📋 Lista Completa de Clientes Cadastrados")
-            df_exibicao = all_cli.rename(
-                columns={
-                    "id": "ID", "nome": "Nome", "cpf": "CPF", "telefone": "Telefone",
-                    "endereco": "Endereço", "bairro": "Bairro", "cep": "CEP",
-                }
-            )
+            df_exibicao = all_cli.rename(columns={"id": "ID", "nome": "Nome", "cpf": "CPF", "telefone": "Telefone", "endereco": "Endereço", "bairro": "Bairro", "cep": "CEP"})
             st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
 
 elif menu == "📈 Histórico de Vendas":
     st.header("📈 Dashboard e Histórico Completo de Vendas")
     conn = conectar()
-    query = """
-        SELECT v.id as 'Pedido', v.data_venda as 'Data', c.nome as 'Cliente', 
-               v.forma_pagamento as 'Pagamento', v.total_pago as 'Valor Total'
-        FROM vendas_cabecalho v 
-        JOIN clientes c ON v.cliente_id = c.id 
-        ORDER BY v.id DESC
-    """
-    df_h = pd.read_sql(query, conn)
+    query = "SELECT v.id as 'Pedido', v.data_venda as 'Data', c.nome as 'Cliente', v.forma_pagamento as 'Pagamento', v.total_pago as 'Valor Total' FROM vendas_cabecalho v JOIN clientes c ON v.cliente_id = c.id ORDER BY v.id DESC"
+    df_h = carregar_dataframe(query, conn)
     conn.close()
     if not df_h.empty:
         st.subheader("📊 Indicadores de Desempenho")
         col1, col2, col3 = st.columns(3)
         col1.metric("Total de Pedidos", len(df_h))
         col2.metric("Faturamento Total", f"R$ {df_h['Valor Total'].sum():,.2f}")
-        ticket_medio = df_h['Valor Total'].mean()
-        col3.metric("Ticket Médio", f"R$ {ticket_medio:,.2f}")
+        col3.metric("Ticket Médio", f"R$ {df_h['Valor Total'].mean():,.2f}")
         
         st.write("---")
         col_graf1, col_graf2 = st.columns(2)
         with col_graf1:
             st.write("**Faturamento por Forma de Pagamento**")
-            df_pagamento = df_h.groupby('Pagamento')['Valor Total'].sum()
-            st.bar_chart(df_pagamento, color="#38bdf8") 
+            st.bar_chart(df_h.groupby('Pagamento')['Valor Total'].sum(), color="#38bdf8") 
             
         with col_graf2:
             st.write("**Evolução de Vendas por Data**")
-            df_data = df_h.groupby('Data')['Valor Total'].sum()
-            st.line_chart(df_data, color="#f8fafc")
+            st.line_chart(df_h.groupby('Data')['Valor Total'].sum(), color="#f8fafc")
             
         st.write("---")
         st.subheader("📋 Detalhamento dos Pedidos")
@@ -724,28 +479,16 @@ elif menu == "📈 Histórico de Vendas":
 elif menu == "🏆 Ranking de Clientes":
     st.header("🏆 Ranking dos Melhores Clientes")
     conn = conectar()
-    query_ranking = """
-        SELECT c.nome as 'Cliente', c.cpf as 'CPF', c.telefone as 'Telefone', 
-               COUNT(v.id) as 'Total de Pedidos', 
-               SUM(v.total_pago) as 'Total Comprado (R$)'
-        FROM vendas_cabecalho v 
-        JOIN clientes c ON v.cliente_id = c.id 
-        GROUP BY c.id
-        ORDER BY SUM(v.total_pago) DESC
-    """
-    df_rank = pd.read_sql(query_ranking, conn)
+    query_ranking = "SELECT c.nome as 'Cliente', c.cpf as 'CPF', c.telefone as 'Telefone', COUNT(v.id) as 'Total de Pedidos', SUM(v.total_pago) as 'Total Comprado (R$)' FROM vendas_cabecalho v JOIN clientes c ON v.cliente_id = c.id GROUP BY c.id ORDER BY SUM(v.total_pago) DESC"
+    df_rank = carregar_dataframe(query_ranking, conn)
     conn.close()
     if not df_rank.empty:
         categorias = []
         for idx in range(len(df_rank)):
-            if idx == 0:
-                categorias.append("🥇 1º Lugar")
-            elif idx == 1:
-                categorias.append("🥈 2º Lugar")
-            elif idx == 2:
-                categorias.append("🥉 3º Lugar")
-            else:
-                categorias.append("Cliente")
+            if idx == 0: categorias.append("🥇 1º Lugar")
+            elif idx == 1: categorias.append("🥈 2º Lugar")
+            elif idx == 2: categorias.append("🥉 3º Lugar")
+            else: categorias.append("Cliente")
         df_rank.insert(0, "Posição", categorias)
         st.subheader("🥇 Pódio de Clientes")
         st.dataframe(df_rank, use_container_width=True, hide_index=True)
@@ -754,14 +497,12 @@ elif menu == "🏆 Ranking de Clientes":
 
 elif menu == "📦 Gestão de Produtos":
     st.header("📦 Gestão de Produtos e Estoque")
-    
     tab1, tab2, tab3 = st.tabs(["📥 Repor Estoque", "🆕 Cadastrar Novo Produto", "💲 Atualizar Preço"])
     
-    # --- ABA 1: REPOR ESTOQUE (PRODUTOS EXISTENTES) ---
     with tab1:
         conn = conectar()
-        prods = pd.read_sql("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
-        lista = [f"{r['codigo']} - {r['nome']}" for i, r in prods.iterrows()]
+        prods = carregar_dataframe("SELECT codigo, nome FROM produtos ORDER BY nome", conn)
+        lista = [f"{r['codigo']} - {r['nome']}" for i, r in prods.iterrows()] if not prods.empty else []
         conn.close()
         
         if lista:
@@ -772,19 +513,17 @@ elif menu == "📦 Gestão de Produtos":
                     cod_p = escolha.split(" - ")[0]
                     conn = conectar()
                     m2_cx = conn.execute("SELECT m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p,)).fetchone()[0]
-                    total_entrada = cx_novas * m2_cx
-                    conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE codigo = ?", (total_entrada, cod_p),)
+                    conn.execute("UPDATE produtos SET m2_total = m2_total + ? WHERE codigo = ?", (cx_novas * m2_cx, cod_p))
                     conn.commit()
                     conn.close()
-                    st.success(f"✅ Estoque atualizado com sucesso!")
+                    st.success(f"✅ Estoque atualizado na nuvem!")
                     time.sleep(1)
                     st.rerun()
         else:
             st.info("Nenhum produto cadastrado para repor.")
 
-    # --- ABA 2: CADASTRAR NOVO PRODUTO ---
     with tab2:
-        st.info("💡 **Dica para Argamassa, Rejunte, etc:** Como são vendidos por unidade (saco/pacote), coloque o **Rendimento** como **1**. O preço será o valor de 1 unidade.")
+        st.info("💡 **Dica para Argamassa, Rejunte, etc:** Coloque o **Rendimento** como **1**. O preço será o valor de 1 unidade.")
         with st.form("novo_produto"):
             c1, c2 = st.columns(2)
             with c1:
@@ -798,23 +537,20 @@ elif menu == "📦 Gestão de Produtos":
             
             if st.form_submit_button("💾 Cadastrar Produto"):
                 if novo_codigo and novo_nome:
-                    m2_total_inicial = estoque_inicial * novo_rendimento
                     conn = conectar()
                     try:
-                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (?,?,?,?,?)", 
-                                     (novo_codigo, novo_nome, novo_rendimento, novo_preco, m2_total_inicial))
+                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (?,?,?,?,?)", (novo_codigo, novo_nome, novo_rendimento, novo_preco, estoque_inicial * novo_rendimento))
                         conn.commit()
-                        st.success(f"✅ Produto '{novo_nome}' cadastrado com sucesso!")
+                        st.success(f"✅ Produto '{novo_nome}' cadastrado na nuvem!")
                         time.sleep(1)
                         st.rerun()
-                    except sqlite3.IntegrityError:
+                    except Exception:
                         st.error("❌ Erro: Já existe um produto cadastrado com este código.")
                     finally:
                         conn.close()
                 else:
                     st.warning("⚠️ Código e Nome são campos obrigatórios.")
 
-    # --- ABA 3: ATUALIZAR PREÇO ---
     with tab3:
         if lista:
             prod_preco = st.selectbox("Selecione o Produto para alterar o valor:", [""] + lista)
@@ -825,10 +561,7 @@ elif menu == "📦 Gestão de Produtos":
                 conn.close()
                 
                 preco_atual = dados_p[0]
-                rend = dados_p[1]
-                preco_cx_atual = preco_atual * rend
-                
-                st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m²/unidade (Valor da Caixa/Saco fechado: R$ {preco_cx_atual:,.2f})")
+                st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m²/unidade (Valor da Caixa fechada: R$ {preco_atual * dados_p[1]:,.2f})")
                 
                 with st.form("form_preco"):
                     novo_valor = st.number_input("Novo Preço por m² / Unidade (R$)", min_value=0.01, step=0.10, value=float(preco_atual))
@@ -837,7 +570,7 @@ elif menu == "📦 Gestão de Produtos":
                         conn.execute("UPDATE produtos SET preco_m2 = ? WHERE codigo = ?", (novo_valor, cod_p2))
                         conn.commit()
                         conn.close()
-                        st.success("✅ Preço atualizado com sucesso!")
+                        st.success("✅ Preço sincronizado na nuvem!")
                         time.sleep(1)
                         st.rerun()
         else:
