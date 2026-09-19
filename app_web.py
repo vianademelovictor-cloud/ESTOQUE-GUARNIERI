@@ -78,6 +78,13 @@ def inicializar_banco():
         (id INTEGER PRIMARY KEY AUTOINCREMENT, venda_id INTEGER, produto TEXT, 
          qtd REAL, unitario REAL, subtotal REAL, caixas INTEGER)""")
     
+    cursor.execute("PRAGMA table_info(produtos)")
+    colunas_produtos = [info[1] for info in cursor.fetchall()]
+    if "pecas_por_caixa" not in colunas_produtos:
+        cursor.execute("ALTER TABLE produtos ADD COLUMN pecas_por_caixa INTEGER DEFAULT 1")
+    if "preco_unidade" not in colunas_produtos:
+        cursor.execute("ALTER TABLE produtos ADD COLUMN preco_unidade REAL DEFAULT 0.0")
+
     cursor.execute("PRAGMA table_info(vendas_itens)")
     colunas_itens = [info[1] for info in cursor.fetchall()]
     if "caixas" not in colunas_itens:
@@ -96,7 +103,7 @@ def inicializar_banco():
 inicializar_banco()
 
 # --- 4. FUNÇÃO REUTILIZÁVEL DE RECIBO (MODAL / PDF / WHATSAPP) ---
-def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, data_venda_str):
+def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, data_venda_str, mostrar_entregador=False):
     with st.expander(f"📄 Opções do Recibo / Comprovante (Pedido #{pedido_id:04d})", expanded=False):
         st.write(f"**Data da Venda:** {data_venda_str}")
         st.write(f"**Forma de Pagamento:** {forma_paga}")
@@ -164,15 +171,34 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
         st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", key=f"dl_pdf_{pedido_id}", use_container_width=True)
 
-        # Link WhatsApp
+        # Link WhatsApp Cliente
         msg_recibo = f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {data_venda_str}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n"
         for _, item in df_recibo.iterrows():
-            msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx ({item['TOTAL m²']}m²)\n"
+            msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid ({item['TOTAL m²']}m²)\n"
         msg_recibo += f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️"
         
         msg_url = urllib.parse.quote(msg_recibo)
         link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
-        st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
+        st.link_button("📲 Enviar Recibo via WhatsApp (CLIENTE)", link_wa, use_container_width=True)
+
+        # Link WhatsApp Entregador (Mostrado apenas na tela de consultas)
+        if mostrar_entregador:
+            st.divider()
+            msg_entregador = (f"*🚚 ROTA DE ENTREGA - GUARNIERI MATERIAIS*\n"
+                              f"-------------------------------------------\n"
+                              f"*PEDIDO Nº:* {pedido_id:04d}\n"
+                              f"*CLIENTE:* {cliente_info['nome']}\n"
+                              f"*CONTATO:* {cliente_info['telefone']}\n"
+                              f"-------------------------------------------\n"
+                              f"*📍 ENDEREÇO DE ENTREGA:*\n"
+                              f"{cliente_info['endereco']}, {cliente_info['bairro']} - CEP: {cliente_info['cep']}\n"
+                              f"-------------------------------------------\n"
+                              f"*ITENS PARA ENTREGAR:*\n")
+            for _, item in df_recibo.iterrows():
+                msg_entregador += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid\n"
+            
+            link_wa_entregador = f"https://wa.me/5519996852018?text={urllib.parse.quote(msg_entregador)}"
+            st.link_button("🛵 Enviar Rota para o Entregador (WhatsApp)", link_wa_entregador, use_container_width=True)
 
 # --- MODAL ORIGINAL DE VENDA (Mantido para compatibilidade do fluxo principal) ---
 @st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
@@ -265,7 +291,7 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
     # --- GERADOR DE LINK WHATSAPP ---
     msg_recibo = (f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n")
     for item in itens_carrinho:
-        msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
+        msg_recibo += f"• {item['prod']}: {item['caixas']} cx/unid ({item['qtd']}m²)\n"
     if desconto_valor > 0:
         msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
     msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
@@ -362,25 +388,41 @@ elif menu == "🛒 Realizar Venda":
                     if prod_selecionado:
                         cod = prod_selecionado.split(" - ")[0]
                         conn = conectar()
-                        p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total FROM produtos WHERE codigo = ?", (cod,)).fetchone()
+                        p = conn.execute("SELECT nome, m2_por_caixa, preco_m2, m2_total, pecas_por_caixa, preco_unidade FROM produtos WHERE codigo = ?", (cod,)).fetchone()
                         conn.close()
                         
                         if p:
                             preco_caixa = p[1] * p[2]
-                            st.info(f"📦 **{p[0]}** | Estoque Atual: **{p[3]} m²** | Rendimento: **{p[1]} m²/cx** | **Preço Unitário: R$ {preco_caixa:,.2f}**")
-                            m2_desejado = st.number_input("Quantos m² (ou unidades) o cliente precisa?", min_value=0.0, step=0.1)
+                            st.info(f"📦 **{p[0]}** | Estoque: **{p[3]:.2f} m²** | Rend. Cx: **{p[1]} m²** | **Preço Cx: R$ {preco_caixa:,.2f}** | **Avulso: R$ {p[5]:,.2f}**")
                             
-                            if m2_desejado > 0:
-                                qtd_caixas = math.ceil(m2_desejado / p[1]) if p[1] > 0 else 1
-                                m2_final = round(qtd_caixas * p[1], 2) if p[1] > 0 else m2_desejado
-                                v_total = round(m2_final * p[2], 2)
-                                st.warning(f"💡 Venda calculada: **{qtd_caixas} caixas/unid.** ({m2_final} m²) = **R$ {v_total:,.2f}**")
-                                
-                                if st.button("➕ Adicionar ao Carrinho"):
-                                    st.session_state.carrinho.append({"prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total})
-                                    st.success("Adicionado!")
-                                    time.sleep(0.5)
-                                    st.rerun()
+                            tipo_venda = st.radio("Como deseja vender esse item?", ["📦 Caixa Fechada / m²", "🧱 Unidade Avulsa"])
+                            
+                            if tipo_venda == "📦 Caixa Fechada / m²":
+                                m2_desejado = st.number_input("Quantos m² o cliente precisa?", min_value=0.0, step=0.1)
+                                if m2_desejado > 0:
+                                    qtd_caixas = math.ceil(m2_desejado / p[1]) if p[1] > 0 else 1
+                                    m2_final = round(qtd_caixas * p[1], 2) if p[1] > 0 else m2_desejado
+                                    v_total = round(m2_final * p[2], 2)
+                                    st.warning(f"💡 Venda calculada: **{qtd_caixas} caixas/unid.** ({m2_final} m²) = **R$ {v_total:,.2f}**")
+                                    
+                                    if st.button("➕ Adicionar ao Carrinho"):
+                                        st.session_state.carrinho.append({"prod": p[0], "cod": cod, "caixas": qtd_caixas, "qtd": m2_final, "unit": p[2], "total": v_total})
+                                        st.success("Adicionado!")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                            else:
+                                qtd_unidades = st.number_input("Quantas peças/unidades avulsas?", min_value=1, step=1)
+                                if qtd_unidades > 0:
+                                    v_total_avulso = round(qtd_unidades * p[5], 2)
+                                    m2_abatimento = round(qtd_unidades * (p[1] / p[4]), 4) if p[4] > 0 else 0.0
+                                    
+                                    st.warning(f"💡 Venda avulsa: **{qtd_unidades} unidades** = **R$ {v_total_avulso:,.2f}**")
+                                    
+                                    if st.button("➕ Adicionar ao Carrinho"):
+                                        st.session_state.carrinho.append({"prod": p[0] + " (Avulso)", "cod": cod, "caixas": qtd_unidades, "qtd": m2_abatimento, "unit": p[5], "total": v_total_avulso})
+                                        st.success("Adicionado!")
+                                        time.sleep(0.5)
+                                        st.rerun()
                                     
             if st.session_state.carrinho:
                 with st.container(border=True):
@@ -535,14 +577,13 @@ elif menu == "🔍 Buscar Cliente":
                                 with st.expander(f"🔴 Pedido Nº {ped['id']:04d} - Data: {ped['data_venda']} - R$ {ped['total_pago']:,.2f}"):
                                     st.write(f"**Forma de Pagamento:** {ped['forma_pagamento']}")
                                     
-                                    # Puxar itens do pedido para exibir na tabela e gerar recibo se necessário
                                     itens_ped_raw = carregar_dataframe(f"SELECT produto as 'prod', caixas, qtd, unitario as 'unit', subtotal as 'total' FROM vendas_itens WHERE venda_id = {ped['id']}", conn)
                                     itens_dict = itens_ped_raw.to_dict(orient="records")
                                     
                                     st.table(itens_ped_raw.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"}))
                                     
-                                    # Botão para ver/baixar recibo a qualquer momento
-                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'])
+                                    # Chamando com mostrar_entregador=True
+                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'], mostrar_entregador=True)
                                     
                                     col_btn1, col_btn2 = st.columns(2)
                                     with col_btn1:
@@ -579,8 +620,7 @@ elif menu == "🔍 Buscar Cliente":
                                     
                                     st.table(itens_ped_raw.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"}))
                                     
-                                    # Opção de recibo também no histórico
-                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'])
+                                    renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'], mostrar_entregador=True)
                                     
                                     if st.button(f"🗑️ Apagar Histórico", key=f"excluir_hist_{ped['id']}"):
                                         conn_up = conectar()
@@ -686,15 +726,17 @@ elif menu == "📦 Gestão de Produtos":
             st.info("Nenhum produto cadastrado para repor.")
 
     with tab2:
-        st.info("💡 **Dica para Argamassa, Rejunte, etc:** Coloque o **Rendimento** como **1**. O preço será o valor de 1 unidade.")
+        st.info("💡 **Dica para Vendas Avulsas:** Defina quantas peças vêm na caixa e o valor unitário para vender fracionado de forma exata.")
         with st.form("novo_produto"):
             c1, c2 = st.columns(2)
             with c1:
                 novo_codigo = st.text_input("Código do Produto (Ex: ARG01, 0015)")
                 novo_nome = st.text_input("Nome do Produto (Ex: Argamassa AC3 20kg)")
+                pecas_cx = st.number_input("Peças por Caixa (Para venda avulsa)", min_value=1, step=1, value=1)
             with c2:
                 novo_rendimento = st.number_input("Rendimento por Caixa/Unid (m²)", min_value=0.01, step=0.01, value=1.00)
                 novo_preco = st.number_input("Preço por m² (ou da Unidade) R$", min_value=0.01, step=0.10, value=10.00)
+                preco_unid = st.number_input("Preço da Unidade Avulsa R$", min_value=0.00, step=0.10, value=0.00)
             
             estoque_inicial = st.number_input("Estoque Inicial (Caixas/Unidades)", min_value=0, step=1, value=0)
             
@@ -702,7 +744,7 @@ elif menu == "📦 Gestão de Produtos":
                 if novo_codigo and novo_nome:
                     conn = conectar()
                     try:
-                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total) VALUES (?,?,?,?,?)", (novo_codigo, novo_nome, novo_rendimento, novo_preco, estoque_inicial * novo_rendimento))
+                        conn.execute("INSERT INTO produtos (codigo, nome, m2_por_caixa, preco_m2, m2_total, pecas_por_caixa, preco_unidade) VALUES (?,?,?,?,?,?,?)", (novo_codigo, novo_nome, novo_rendimento, novo_preco, estoque_inicial * novo_rendimento, pecas_cx, preco_unid))
                         conn.commit()
                         st.success(f"✅ Produto '{novo_nome}' cadastrado na nuvem!")
                         time.sleep(1)
@@ -720,20 +762,22 @@ elif menu == "📦 Gestão de Produtos":
             if prod_preco:
                 cod_p2 = prod_preco.split(" - ")[0]
                 conn = conectar()
-                dados_p = conn.execute("SELECT preco_m2, m2_por_caixa FROM produtos WHERE codigo = ?", (cod_p2,)).fetchone()
+                dados_p = conn.execute("SELECT preco_m2, m2_por_caixa, preco_unidade FROM produtos WHERE codigo = ?", (cod_p2,)).fetchone()
                 conn.close()
                 
                 preco_atual = dados_p[0]
-                st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m²/unidade (Valor da Caixa fechada: R$ {preco_atual * dados_p[1]:,.2f})")
+                preco_avulso_atual = dados_p[2]
+                st.info(f"💰 Preço Atual: **R$ {preco_atual:,.2f}** por m² | Avulso: **R$ {preco_avulso_atual:,.2f}**")
                 
                 with st.form("form_preco"):
-                    novo_valor = st.number_input("Novo Preço por m² / Unidade (R$)", min_value=0.01, step=0.10, value=float(preco_atual))
+                    novo_valor = st.number_input("Novo Preço por m² (R$)", min_value=0.01, step=0.10, value=float(preco_atual))
+                    novo_valor_unid = st.number_input("Novo Preço Unidade Avulsa (R$)", min_value=0.00, step=0.10, value=float(preco_avulso_atual))
                     if st.form_submit_button("Atualizar Preço"):
                         conn = conectar()
-                        conn.execute("UPDATE produtos SET preco_m2 = ? WHERE codigo = ?", (novo_valor, cod_p2))
+                        conn.execute("UPDATE produtos SET preco_m2 = ?, preco_unidade = ? WHERE codigo = ?", (novo_valor, novo_valor_unid, cod_p2))
                         conn.commit()
                         conn.close()
-                        st.success("✅ Preço sincronizado na nuvem!")
+                        st.success("✅ Preços sincronizados na nuvem!")
                         time.sleep(1)
                         st.rerun()
         else:
