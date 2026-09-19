@@ -113,7 +113,7 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
             linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['DISCRIMINAÇÃO']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['QTD CAIXAS']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['TOTAL m²']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['TOTAL R$']:,.2f}</td></tr>"
 
         html_recibo = f"""
-        <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} .header {{ text-align: center; color: #1e5d2d; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {data_venda_str} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table><div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
+        <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {data_venda_str} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table><div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
         """
         
         conteudo_safe = json.dumps(html_recibo)
@@ -173,6 +173,106 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         msg_url = urllib.parse.quote(msg_recibo)
         link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
         st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
+
+# --- MODAL ORIGINAL DE VENDA (Mantido para compatibilidade do fluxo principal) ---
+@st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
+def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, desconto_valor=0.0):
+    st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom:0;'>GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>", unsafe_allow_html=True)
+    st.write("<p style='text-align: center; color: #94a3b8;'><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</p>", unsafe_allow_html=True)
+    st.divider()
+    
+    c1, c2 = st.columns(2)
+    c1.write(f"**Data:** {datetime.now().strftime('%d/%m/%Y')}")
+    c2.write(f"**PEDIDO Nº:** {pedido_id:04d}")
+    st.write(f"**Cliente:** {cliente_info['nome']}")
+    st.write(f"**Endereço:** {cliente_info['endereco']}, {cliente_info['bairro']}")
+    st.write(f"**Forma de Pagamento:** {forma_paga}")
+    st.divider()
+    
+    df_recibo = pd.DataFrame(itens_carrinho)
+    df_recibo = df_recibo.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"})
+    st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
+    
+    if desconto_valor > 0:
+        st.write(f"<p style='text-align: right; color: #38bdf8;'>Desconto Aplicado: - R$ {desconto_valor:,.2f}</p>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: right; color: #ffffff;'>TOTAL R$ {total_geral:,.2f}</h3>", unsafe_allow_html=True)
+
+    linhas_tabela = ""
+    for item in itens_carrinho:
+        linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td></tr>"
+        
+    linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>" if desconto_valor > 0 else ""
+
+    html_recibo = f"""
+    <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table>{linha_desconto}<div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
+    """
+    
+    conteudo_safe = json.dumps(html_recibo)
+    html_js = f"<div><button onclick=\"imprimirRecibo()\" style=\"width: 100%; background-color: #000000; color: white; padding: 12px; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; font-family: sans-serif; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\">🖨️ Imprimir / Salvar Recibo</button></div><script>function imprimirRecibo() {{ const janela = window.open('', '', 'width=800,height=600'); janela.document.write({conteudo_safe}); janela.document.close(); janela.focus(); setTimeout(() => {{ janela.print(); janela.close(); }}, 500); }}</script>"
+    components.html(html_js, height=70)
+
+    # --- GERADOR DE PDF ---
+    def limpar_texto(texto):
+        return str(texto).encode('latin-1', 'ignore').decode('latin-1')
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(190, 10, "GUARNIERI MATERIAIS DE CONSTRUCAO", ln=True, align="C")
+    
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(190, 7, "Rua Ana Herminia Trento Roque, 902 - Limeira - SP", ln=True, align="C")
+    pdf.cell(190, 7, "Fone: (19) 9 9473-6066", ln=True, align="C")
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(190, 10, f"PEDIDO DE VENDA: {pedido_id:04d}", ln=True)
+    
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(190, 7, f"Data: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Cliente: {cliente_info['nome']}"), ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Endereco: {cliente_info['endereco']}, {cliente_info['bairro']}"), ln=True)
+    pdf.cell(190, 7, limpar_texto(f"Forma de Pagamento: {forma_paga}"), ln=True)
+    pdf.ln(5)
+    
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
+    pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
+    pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
+    pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
+    
+    pdf.set_font("Arial", "", 10)
+    for item in itens_carrinho:
+        pdf.cell(80, 8, limpar_texto(item["prod"]), 1)
+        pdf.cell(30, 8, str(item["caixas"]), 1, 0, "C")
+        pdf.cell(40, 8, f"{item['qtd']:.2f}", 1, 0, "C")
+        pdf.cell(40, 8, f"R$ {item['total']:,.2f}", 1, 1, "R")
+        
+    if desconto_valor > 0:
+        pdf.ln(2)
+        pdf.cell(190, 7, limpar_texto(f"Desconto: - R$ {desconto_valor:,.2f}"), ln=True, align="R")
+        
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(190, 10, f"VALOR TOTAL: R$ {total_geral:,.2f}", ln=True, align="R")
+    
+    pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
+    
+    st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", use_container_width=True)
+
+    # --- GERADOR DE LINK WHATSAPP ---
+    msg_recibo = (f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n")
+    for item in itens_carrinho:
+        msg_recibo += f"• {item['prod']}: {item['caixas']} cx ({item['qtd']}m²)\n"
+    if desconto_valor > 0:
+        msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
+    msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
+    
+    msg_url = urllib.parse.quote(msg_recibo)
+    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+    st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
 # --- 5. NAVEGAÇÃO LATERAL ---
 st.sidebar.markdown("<h2 style='color:#ffffff; font-weight:800; font-size:1.3rem; margin-bottom:10px;'>SERVIÇOS GUARNIERI</h2>", unsafe_allow_html=True)
@@ -312,7 +412,7 @@ elif menu == "🛒 Realizar Venda":
                         conn.close()
                         
                         st.success(f"Pedido #{v_id:04d} finalizado com sucesso!")
-                        renderizar_acoes_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, datetime.now().strftime('%d/%m/%Y'))
+                        exibir_recibo(cli_dados, st.session_state.carrinho, total_final, v_id, forma_pago, desconto_valor)
                         st.session_state.carrinho = []
 
 elif menu == "📋 Estoque":
