@@ -111,16 +111,16 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         df_recibo = pd.DataFrame(itens_carrinho)
         if "prod" in df_recibo.columns:
             df_recibo = df_recibo.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"})
-        st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
+        st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "UNITÁRIO", "TOTAL R$"]])
         st.markdown(f"<h3 style='text-align: right; color: #ffffff;'>TOTAL R$ {total_geral:,.2f}</h3>", unsafe_allow_html=True)
 
         # Montagem do HTML para Impressão
         linhas_tabela = ""
         for _, item in df_recibo.iterrows():
-            linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['DISCRIMINAÇÃO']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['QTD CAIXAS']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['TOTAL m²']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['TOTAL R$']:,.2f}</td></tr>"
+            linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['DISCRIMINAÇÃO']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['QTD CAIXAS']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['TOTAL m²']:.2f}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['UNITÁRIO']:,.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['TOTAL R$']:,.2f}</td></tr>"
 
         html_recibo = f"""
-        <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {data_venda_str} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table><div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
+        <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {data_venda_str} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: center;'>V. UNIT (R$)</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table><div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
         """
         
         conteudo_safe = json.dumps(html_recibo)
@@ -152,17 +152,19 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         
         pdf.set_fill_color(240, 240, 240)
         pdf.set_font("Arial", "B", 10)
-        pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
-        pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
-        pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
-        pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
+        pdf.cell(70, 8, "PRODUTO", 1, 0, "C", True)
+        pdf.cell(20, 8, "CAIXAS", 1, 0, "C", True)
+        pdf.cell(30, 8, "TOTAL m2", 1, 0, "C", True)
+        pdf.cell(35, 8, "V. UNIT (R$)", 1, 0, "C", True)
+        pdf.cell(35, 8, "TOTAL R$", 1, 1, "C", True)
         
         pdf.set_font("Arial", "", 10)
         for _, item in df_recibo.iterrows():
-            pdf.cell(80, 8, limpar_texto(item["DISCRIMINAÇÃO"]), 1)
-            pdf.cell(30, 8, str(item["QTD CAIXAS"]), 1, 0, "C")
-            pdf.cell(40, 8, f"{item['TOTAL m²']:.2f}", 1, 0, "C")
-            pdf.cell(40, 8, f"R$ {item['TOTAL R$']:,.2f}", 1, 1, "R")
+            pdf.cell(70, 8, limpar_texto(item["DISCRIMINAÇÃO"]), 1)
+            pdf.cell(20, 8, str(item["QTD CAIXAS"]), 1, 0, "C")
+            pdf.cell(30, 8, f"{item['TOTAL m²']:.2f}", 1, 0, "C")
+            pdf.cell(35, 8, f"R$ {item['UNITÁRIO']:,.2f}", 1, 0, "C")
+            pdf.cell(35, 8, f"R$ {item['TOTAL R$']:,.2f}", 1, 1, "R")
             
         pdf.ln(5)
         pdf.set_font("Arial", "B", 14)
@@ -174,7 +176,7 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         # Link WhatsApp Cliente
         msg_recibo = f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {data_venda_str}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n"
         for _, item in df_recibo.iterrows():
-            msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid ({item['TOTAL m²']}m²)\n"
+            msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid ({item['TOTAL m²']}m²) - R$ {item['UNITÁRIO']:,.2f} un.\n"
         msg_recibo += f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️"
         
         msg_url = urllib.parse.quote(msg_recibo)
@@ -217,7 +219,7 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
     
     df_recibo = pd.DataFrame(itens_carrinho)
     df_recibo = df_recibo.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"})
-    st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "TOTAL R$"]])
+    st.table(df_recibo[["DISCRIMINAÇÃO", "QTD CAIXAS", "TOTAL m²", "UNITÁRIO", "TOTAL R$"]])
     
     if desconto_valor > 0:
         st.write(f"<p style='text-align: right; color: #38bdf8;'>Desconto Aplicado: - R$ {desconto_valor:,.2f}</p>", unsafe_allow_html=True)
@@ -225,12 +227,12 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
 
     linhas_tabela = ""
     for item in itens_carrinho:
-        linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td></tr>"
+        linhas_tabela += f"<tr><td style='padding: 10px; border-bottom: 1px solid #ddd;'>{item['prod']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['caixas']}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>{item['qtd']:.2f}</td><td style='text-align: center; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['unit']:,.2f}</td><td style='text-align: right; padding: 10px; border-bottom: 1px solid #ddd;'>R$ {item['total']:,.2f}</td></tr>"
         
     linha_desconto = f"<div style='text-align: right; font-size: 14px; margin-top: 10px;'>Desconto: - R$ {desconto_valor:,.2f}</div>" if desconto_valor > 0 else ""
 
     html_recibo = f"""
-    <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table>{linha_desconto}<div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
+    <html><head><title>Recibo - Pedido {pedido_id:04d}</title><style>body {{ font-family: Arial, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: auto; }} a {{ color: #000 !important; text-decoration: none !important; }} .header {{ text-align: center; color: #000000; margin-bottom: 0; font-size: 24px; }} .sub {{ text-align: center; font-size: 12px; margin-top: 5px; }} .info {{ margin: 25px 0; font-size: 14px; line-height: 1.6; }} table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }} th, td {{ border: 1px solid #ccc; padding: 10px; font-size: 14px; }} th {{ background-color: #f2f2f6; text-align: left; }} .total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }} .pago {{ text-align: center; border: 3px solid black; padding: 12px; font-weight: bold; font-size: 22px; margin-top: 30px; background-color: #f0f2f6; }}</style></head><body><h2 class="header">GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2><div class="sub"><b>Fone: (19) 9 9473-6066</b><br>Rua Ana Herminia Trento Roque, 902 - Limeira - SP</div><hr style="margin: 20px 0;"><div class="info"><p><b>Data:</b> {datetime.now().strftime('%d/%m/%Y')} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>PEDIDO Nº:</b> {pedido_id:04d}</p><p><b>Cliente:</b> {cliente_info['nome']}<br><b>Endereço:</b> {cliente_info['endereco']}, {cliente_info['bairro']}<br><b>Pagamento:</b> {forma_paga}</p></div><hr style="margin: 20px 0;"><table><thead><tr><th>DISCRIMINAÇÃO</th><th style='text-align: center;'>QTD CAIXAS</th><th style='text-align: center;'>TOTAL m²</th><th style='text-align: center;'>V. UNIT (R$)</th><th style='text-align: right;'>TOTAL R$</th></tr></thead><tbody>{linhas_tabela}</tbody></table>{linha_desconto}<div class="total">VALOR TOTAL: R$ {total_geral:,.2f}</div><div class="pago">PAGO VIA {forma_paga.upper()}</div></body></html>
     """
     
     conteudo_safe = json.dumps(html_recibo)
@@ -264,17 +266,19 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
     
     pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", "B", 10)
-    pdf.cell(80, 8, "PRODUTO", 1, 0, "C", True)
-    pdf.cell(30, 8, "CAIXAS", 1, 0, "C", True)
-    pdf.cell(40, 8, "TOTAL m2", 1, 0, "C", True)
-    pdf.cell(40, 8, "TOTAL R$", 1, 1, "C", True)
+    pdf.cell(70, 8, "PRODUTO", 1, 0, "C", True)
+    pdf.cell(20, 8, "CAIXAS", 1, 0, "C", True)
+    pdf.cell(30, 8, "TOTAL m2", 1, 0, "C", True)
+    pdf.cell(35, 8, "V. UNIT (R$)", 1, 0, "C", True)
+    pdf.cell(35, 8, "TOTAL R$", 1, 1, "C", True)
     
     pdf.set_font("Arial", "", 10)
     for item in itens_carrinho:
-        pdf.cell(80, 8, limpar_texto(item["prod"]), 1)
-        pdf.cell(30, 8, str(item["caixas"]), 1, 0, "C")
-        pdf.cell(40, 8, f"{item['qtd']:.2f}", 1, 0, "C")
-        pdf.cell(40, 8, f"R$ {item['total']:,.2f}", 1, 1, "R")
+        pdf.cell(70, 8, limpar_texto(item["prod"]), 1)
+        pdf.cell(20, 8, str(item["caixas"]), 1, 0, "C")
+        pdf.cell(30, 8, f"{item['qtd']:.2f}", 1, 0, "C")
+        pdf.cell(35, 8, f"R$ {item['unit']:,.2f}", 1, 0, "C")
+        pdf.cell(35, 8, f"R$ {item['total']:,.2f}", 1, 1, "R")
         
     if desconto_valor > 0:
         pdf.ln(2)
@@ -291,7 +295,7 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
     # --- GERADOR DE LINK WHATSAPP ---
     msg_recibo = (f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {datetime.now().strftime('%d/%m/%Y')}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n")
     for item in itens_carrinho:
-        msg_recibo += f"• {item['prod']}: {item['caixas']} cx/unid ({item['qtd']}m²)\n"
+        msg_recibo += f"• {item['prod']}: {item['caixas']} cx/unid ({item['qtd']}m²) - R$ {item['unit']:,.2f} un.\n"
     if desconto_valor > 0:
         msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
     msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
