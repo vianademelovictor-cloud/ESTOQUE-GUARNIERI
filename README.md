@@ -6,7 +6,7 @@ Este é um sistema web desenvolvido em **Python** (utilizando **Streamlit**) com
 * **Painel Web Moderno**: Interface responsiva e integrada baseada em Streamlit.
 * **Gestão de Vendas (PDV)**: Suporte a venda por caixas fechadas/m² e por peças/unidades avulsas, com cálculo dinâmico de preços por modelo e abatimento automático do estoque.
 * **Controle de Clientes**: Cadastro completo com consulta de endereço via API ViaCEP e histórico de compras.
-* **Controle de Entregas e Logística**: Gestão de entregas pendentes e histórico, com opção de envio de rotas e dados diretamente para o entregador via WhatsApp (`+55 19 99685-2018`).
+* **Controle de Entregas e Logística**: Gestão de entregas pendentes e histórico, com opção de envio de rotas e dados diretamente para o entregador via WhatsApp.
 * **Comprovantes e Recibos**: Geração de recibos estilizados para impressão otimizada em preto, exportação em PDF e envio direto pelo WhatsApp para o cliente.
 * **Alertas e Indicadores**: Alerta automático de estoque crítico e dashboards de desempenho financeiro.
 
