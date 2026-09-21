@@ -44,11 +44,21 @@ st.markdown(
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CAMADA DE DADOS (TURSO) ---
+# --- 3. CAMADA DE DADOS (TURSO) & AUXILIARES ---
 def conectar():
     url = st.secrets["TURSO_DATABASE_URL"]
     token = st.secrets["TURSO_AUTH_TOKEN"]
     return libsql.connect(url, auth_token=token)
+
+def limpar_telefone(tel_str):
+    if not tel_str:
+        return ""
+    digitos = "".join(filter(str.isdigit, str(tel_str)))
+    if len(digitos) >= 12 and digitos.startswith("55"):
+        return digitos
+    elif len(digitos) >= 10:
+        return "55" + digitos
+    return digitos
 
 def carregar_dataframe(query, conn, params=None):
     cursor = conn.cursor()
@@ -173,14 +183,15 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
         pdf_output = pdf.output(dest="S").encode("latin-1", errors="replace")
         st.download_button(label="📥 Baixar Recibo em PDF", data=pdf_output, file_name=f"Recibo_Guarnieri_{pedido_id}.pdf", mime="application/pdf", key=f"dl_pdf_{pedido_id}", use_container_width=True)
 
-        # Link WhatsApp Cliente
+        # Link WhatsApp Cliente (Com número limpo)
         msg_recibo = f"*📄 RECIBO DE PEDIDO - GUARNIERI MATERIAIS DE CONSTRUÇÃO*\n-------------------------------------------\n*PEDIDO Nº:* {pedido_id:04d}\n*DATA:* {data_venda_str}\n-------------------------------------------\n*CLIENTE:* {cliente_info['nome']}\n*PAGAMENTO:* {forma_paga}\n-------------------------------------------\n"
         for _, item in df_recibo.iterrows():
             msg_recibo += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid ({item['TOTAL m²']}m²) - R$ {item['UNITÁRIO']:,.2f} un.\n"
         msg_recibo += f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️"
         
+        telefone_limpo_cli = limpar_telefone(cliente_info['telefone'])
         msg_url = urllib.parse.quote(msg_recibo)
-        link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+        link_wa = f"https://wa.me/{telefone_limpo_cli}?text={msg_url}"
         st.link_button("📲 Enviar Recibo via WhatsApp (CLIENTE)", link_wa, use_container_width=True)
 
         # Link WhatsApp Entregador (Mostrado apenas na tela de consultas)
@@ -199,10 +210,11 @@ def renderizar_acoes_recibo(cliente_info, itens_carrinho, total_geral, pedido_id
             for _, item in df_recibo.iterrows():
                 msg_entregador += f"• {item['DISCRIMINAÇÃO']}: {item['QTD CAIXAS']} cx/unid\n"
             
-            link_wa_entregador = f"https://wa.me/5519996852018?text={urllib.parse.quote(msg_entregador)}"
+            telefone_limpo_ent = limpar_telefone("19996852018")
+            link_wa_entregador = f"https://wa.me/{telefone_limpo_ent}?text={urllib.parse.quote(msg_entregador)}"
             st.link_button("🛵 Enviar Rota para o Entregador (WhatsApp)", link_wa_entregador, use_container_width=True)
 
-# --- MODAL ORIGINAL DE VENDA (Mantido para compatibilidade do fluxo principal) ---
+# --- MODAL ORIGINAL DE VENDA ---
 @st.dialog("📄 Recibo de Pedido - Guarnieri Materiais de Construção")
 def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_paga, desconto_valor=0.0):
     st.markdown("<h2 style='text-align: center; color: #ffffff; margin-bottom:0;'>GUARNIERI MATERIAIS DE CONSTRUÇÃO</h2>", unsafe_allow_html=True)
@@ -300,8 +312,9 @@ def exibir_recibo(cliente_info, itens_carrinho, total_geral, pedido_id, forma_pa
         msg_recibo += f"-------------------------------------------\n*DESCONTO:* -R$ {desconto_valor:,.2f}\n"
     msg_recibo += (f"-------------------------------------------\n*VALOR TOTAL: R$ {total_geral:,.2f}*\n-------------------------------------------\nAgradecemos a preferência! 🏗️")
     
+    telefone_limpo_cli = limpar_telefone(cliente_info['telefone'])
     msg_url = urllib.parse.quote(msg_recibo)
-    link_wa = f"https://wa.me/55{cliente_info['telefone']}?text={msg_url}"
+    link_wa = f"https://wa.me/{telefone_limpo_cli}?text={msg_url}"
     st.link_button("📲 Enviar Recibo via WhatsApp", link_wa, use_container_width=True)
 
 # --- 5. NAVEGAÇÃO LATERAL ---
@@ -586,7 +599,6 @@ elif menu == "🔍 Buscar Cliente":
                                     
                                     st.table(itens_ped_raw.rename(columns={"prod": "DISCRIMINAÇÃO", "caixas": "QTD CAIXAS", "qtd": "TOTAL m²", "unit": "UNITÁRIO", "total": "TOTAL R$"}))
                                     
-                                    # Chamando com mostrar_entregador=True
                                     renderizar_acoes_recibo(cli, itens_dict, ped['total_pago'], ped['id'], ped['forma_pagamento'], ped['data_venda'], mostrar_entregador=True)
                                     
                                     col_btn1, col_btn2 = st.columns(2)
