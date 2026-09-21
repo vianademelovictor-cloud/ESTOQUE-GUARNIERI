@@ -41,6 +41,11 @@ st.markdown(
     [data-testid="stMetricValue"] { color: #38bdf8 !important; font-weight: 800 !important; font-size: 2rem !important; }
     .stDataFrame { border: 1px solid #1e293b !important; border-radius: 10px !important; }
     .top-header { text-align: center; padding: 10px 0 20px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    
+    /* Esconder o cabecalho padrao do Streamlit (Share, GitHub, Menu) */
+    [data-testid="stHeader"] { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+    footer { display: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
